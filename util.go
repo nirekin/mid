@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// encode 
 func encodeUTF(s string) string {
 	// TODO check to implement a real encoding
 	s = strings.Replace(s, "!", "U+0021", -1)
