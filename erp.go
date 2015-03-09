@@ -15,6 +15,7 @@ type VisibleErp struct {
 	Entries      []*VisibleErpEntry
 }
 
+
 type Erp struct {
 	CreationDate string
 	TypeInt      int
@@ -207,3 +208,13 @@ func getErps() []Erp {
 	return result
 }
 
+func initDbErp(db *sql.DB) {
+
+	// TABLE FOR ERP
+	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp` (`id` INTEGER UNSIGNED NOT NULL AUTO_INCREMENT,`creationDate` DATETIME NOT NULL DEFAULT 0,`typeInt` INTEGER UNSIGNED NOT NULL DEFAULT 0,`type` VARCHAR(45) NOT NULL DEFAULT '',`name` VARCHAR(45) NOT NULL DEFAULT '',`value` longtext, PRIMARY KEY(`id`))ENGINE = InnoDB;"
+	st, err := db.Prepare(sql)
+	defer st.Close()
+	checkErr(err)
+	_, err = st.Exec()
+	checkErr(err)
+}

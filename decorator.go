@@ -356,3 +356,15 @@ func getPredefinedDecorator() []*PredefinedDecorator {
 	}
 	return result
 }
+
+func initDbDecorator(db *sql.DB) {
+	defer fmt.Printf("Init DB DONE! \n")
+
+	// TABLE FOR SYNC FIELD DECORATOR
+	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field_decorator` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT, `decoratorId` int(10) unsigned NOT NULL DEFAULT '0', `syncFieldId` int(10) unsigned NOT NULL DEFAULT '0', `sortingOrder` int(10) unsigned NOT NULL DEFAULT '0', `params` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+	st, err := db.Prepare(sql)
+	checkErr(err)
+	_, err = st.Exec()
+	checkErr(err)
+
+}

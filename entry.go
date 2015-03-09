@@ -523,3 +523,15 @@ func getErpEntries() []ErpEntry {
 	}
 	return result
 }
+
+func initDbEntry(db *sql.DB) {
+	defer fmt.Printf("Init DB DONE! \n")
+
+	// TABLE FOR ERP ENTRY
+	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp_entry` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`sourceName` varchar(255) NOT NULL DEFAULT '',`name` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+	st, err := db.Prepare(sql)
+	checkErr(err)
+	_, err = st.Exec()
+	checkErr(err)
+
+}

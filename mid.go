@@ -54,7 +54,6 @@ type ExtractedContent struct {
 	Content    string
 }
 
-
 type LoadedContentLine struct {
 	Name         string
 	ErpPk        string
@@ -84,8 +83,7 @@ const (
 	MYSQL_TYPE_EMPTY = "__/#/__"
 	ACCESS_TYPE      = 2
 
-	
-	db_url          = "root:admin@tcp(localhost:3306)/mid_db"
+	db_url = "root:admin@tcp(localhost:3306)/mid_db"
 )
 
 var dbC *sql.DB
@@ -523,41 +521,9 @@ func inspectHandler(w http.ResponseWriter, r *http.Request) {
 
 func initDb(db *sql.DB) {
 	defer fmt.Printf("Init DB DONE! \n")
-
-	// TABLE FOR ERP
-	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp` (`id` INTEGER UNSIGNED NOT NULL AUTO_INCREMENT,`creationDate` DATETIME NOT NULL DEFAULT 0,`typeInt` INTEGER UNSIGNED NOT NULL DEFAULT 0,`type` VARCHAR(45) NOT NULL DEFAULT '',`name` VARCHAR(45) NOT NULL DEFAULT '',`value` longtext, PRIMARY KEY(`id`))ENGINE = InnoDB;"
-	st, err := db.Prepare(sql)
-	defer st.Close()
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
-
-	// TABLE FOR ERP ENTRY
-	sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp_entry` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`sourceName` varchar(255) NOT NULL DEFAULT '',`name` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	st, err = db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
-
-	// TABLE FOR SYNC FIELD
-	//sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpEntryId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`fieldName` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpEntryId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`fieldName` varchar(255) NOT NULL DEFAULT '',`jsonName` varchar(255) NOT NULL DEFAULT '',`erpPk` int(10) unsigned DEFAULT '0',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	st, err = db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
-
-	// TABLE FOR SYNC FIELD DECORATOR
-	sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field_decorator` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT, `decoratorId` int(10) unsigned NOT NULL DEFAULT '0', `syncFieldId` int(10) unsigned NOT NULL DEFAULT '0', `sortingOrder` int(10) unsigned NOT NULL DEFAULT '0', `params` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	st, err = db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
-
-	// TABLE FOR SYNC JOUNRNAL
-	sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_events` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT, `erpEntryId` int(10) unsigned NOT NULL DEFAULT '0', `syncDate` bigint(20) unsigned DEFAULT NULL, `imported` int(10) unsigned NOT NULL DEFAULT '0', `updated` int(10) unsigned NOT NULL DEFAULT '0', `deleted` int(10) unsigned NOT NULL DEFAULT '0', PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	st, err = db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
+	initDbErp(db)
+	initDbEntry(db)
+	initDbSyncField(db)
+	initDbDecorator(db)
+	initDbSyncEvent(db)
 }
