@@ -1,0 +1,43 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+		function submitCreateErpEntry(name){
+			document.forms["myHiddenFormCreateErpEntry"]["SourceName"].value = name;
+			document.forms["myHiddenFormCreateErpEntry"].submit();
+		}
+
+	</script>
+</head>
+
+<body>
+<h1>List Sources:</h1>
+
+	Id: {{.Id}}<br>
+	CreationDate: {{.CreationDate}}<br>
+	TypeInt: {{.TypeInt}}<br>
+	Type: {{.Type}}<br>
+	Name: {{.Name}}<br>
+	Value: {{.Value}}<br>
+
+<table>
+	<tr>
+		<th>Schema</th>
+		<th>Name</th>
+		<th>Create Erp Entry</th>
+	</tr>
+	{{range .Sources}}
+		<tr>
+			<td align="center">{{.Schema}}</td>
+			<td align="center">{{.Name}}</td>
+			<td align="center"><a href="javascript:submitCreateErpEntry('{{.Name}}');"> >> </a></td>
+		</tr>
+	{{end}}
+</table>
+
+<form name="myHiddenFormCreateErpEntry" action="/createErpEntry/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="Id" />
+		<input type="hidden" value="" name="SourceName" />
+	</form>
+</body>
+</html>

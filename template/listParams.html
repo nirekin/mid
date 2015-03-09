@@ -1,0 +1,45 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+		function submithf1(id){
+			document.forms["hf1"]["DecId"].value = id;
+			document.forms["hf1"].submit();
+		}
+	</script>
+</head>
+
+<body>
+<h1>Parameters required to add a decorator:0</h1>
+
+<p>
+	FieldId: {{.FieldId}}<br>
+	DecoratorId: {{.DecoratorId}}<br>
+	<br>
+	Decorator Name: {{.PDecorator.Name}}<br>
+	Decorator Description: {{.PDecorator.Description}}<br>
+
+	<form name="myForm" action="/requestAddDecoratoParam/" method="POST">
+		<input type="hidden" value="{{.FieldId}}" name="FieldId" />
+		<input type="hidden" value="{{.DecoratorId}}" name="DecoratorId" />
+		<table>
+			<tr>
+				<th>Description</th>
+				<th>Type</th>
+				<th>Value</th>
+
+			</tr>
+			{{range .PDecorator.Params}}
+			<tr>
+				<td align="center">{{.Description}}</td>
+				<td align="center">{{.Type}}</td>
+				<td  align="center"><input name="{{.Name}}" size="50" maxlength="50" ></td>
+			</tr>
+			{{end}}
+		<div>
+			<input type="submit" value="add">
+		</div>
+	</form>
+
+</body>
+</html>

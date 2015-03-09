@@ -1,0 +1,32 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+	</script>
+</head>
+
+<body>
+<h1>Inspect Entries:</h1>
+
+[<a href="/admin/">Admin</a>]
+
+<table>
+	<tr>
+		<th>CreationDate</th>
+		<th>Name</th>
+		<th>SourceName</th>
+		<th>Inspect</th>
+	</tr>
+{{range .}}
+	<tr>
+		<td align="center">{{.CreationDate}}</td>
+		<td align="center">{{.Name}}</td>
+		<td align="center">{{.SourceName}}</td>
+		<td align="center"><a href="/inspect/{{.Id}}"> >> </a></td>
+	</tr>
+{{end}}
+</table>
+
+
+</body>
+</html>

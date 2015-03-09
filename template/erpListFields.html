@@ -1,0 +1,45 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+		function submitCreateSyncField(name){
+			document.forms["hf1"]["FieldName"].value = name;
+			document.forms["hf1"].submit();
+		}
+
+	</script>
+</head>
+
+<body>
+<h1>List Fields:</h1>
+
+	[<a href="/erpentries/">Entries</a>]
+
+	<p>
+
+	Id: {{.Id}}<br>
+	CreationDate: {{.CreationDate}}<br>
+	ErpId: {{.ErpId}}<br>
+	SourceName: {{.SourceName}}<br>
+
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Used</th>
+		<th>Add synchronized field</th>
+	</tr>
+	{{range .Fields}}
+		<tr>
+			<td align="center">{{.Name}}</td>
+			<td align="center">{{.Used}}</td>
+			<td align="center"><a href="javascript:submitCreateSyncField('{{.Name}}');"> >> </a></td>
+		</tr>
+	{{end}}
+</table>
+
+	<form name="hf1" action="/createSyncField/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="Id" />
+		<input type="hidden" value="" name="FieldName" />
+	</form>
+</body>
+</html>

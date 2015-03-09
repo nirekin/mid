@@ -1,0 +1,85 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+		function submithf1(id){
+			document.forms["hf1"]["DecId"].value = id;
+			document.forms["hf1"].submit();
+		}
+	</script>
+</head>
+
+<body>
+<h1>Add a decorator:</h1>
+
+	<p>
+	Id: {{.Id}}<br>
+	ErpEntryId: {{.ErpEntryId}}<br>
+	CreationDate: {{.CreationDate}}<br>
+	FieldName: {{.FieldName}}<br>
+
+<form name="myForm" action="/requestAddDecorator/" method="POST">
+	<input type="hidden" value="{{.Id}}" name="FieldId" />
+	<select name="DecoratorId">
+		<option value="selectstuff">--- Please select ---</option>
+		{{range .PredefinedDecorators}}
+			  <option value="{{.Id}}">{{.Name}} {{.Description}}</option>
+		{{end}}
+	</select>
+	<div>
+		<input type="submit" value="add">
+	</div>
+</form>
+<P>
+<table>
+	<tr>
+		<th>Name</th>
+		<th>Description</th>
+		<th>SortingOrder</th>
+		<th>Params</th>
+		<th>Delete</th>
+	</tr>
+{{range .Decorators}}
+	<tr>
+		<td align="center">{{.Name}}</td>
+		<td align="center">{{.Description}}</td>
+		<td align="center">{{.SortingOrder}}</td>
+		<td align="center">{{.Params}}</td>
+		<td align="center"><a href="javascript:submithf1('{{.Id}}');"><img src="/resources/delete.png" alt="delete" style="width:20px;height:20px"></a></td>
+	</tr>
+{{end}}
+
+<P>
+
+</table>
+
+	<form name="myForm" action="/pingTestErpEntry/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="FieldId" />
+		<table>
+			<tr class="commonBlock">
+				<td>Imput</td>
+				<td><input name="TestContent" size="150" maxlength="150" value="Enter here the content to test"></td>
+			</tr>
+		
+		<table>
+		<div>
+			<input type="submit" value="Test">
+		</div>
+	</form>
+
+	<table>
+		<tr>
+			<td align="left">{{.TestContent}}</td>
+		</tr>
+		<tr>
+			<td align="left">{{.TestResponse}}</td>
+		</tr>	
+	</table>
+
+<form name="hf1" action="/deleteDecoratorInAdd/" method="POST">
+		<input type="hidden" value="" name="DecId" />
+		<input type="hidden" value="{{.Id}}" name="FieldId" />
+	</form>
+
+</body>
+</html>

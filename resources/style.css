@@ -1,0 +1,75 @@
+a:link {
+    color: #000000;
+}
+
+a:visited {
+    color: #000000;
+}
+
+a:hover {
+    color: #000000;
+}
+
+a:active {
+    color: #000000;
+}
+
+body {
+	background-color: linen;
+}
+
+h1 {
+	color: black;
+	margin-left: 40px;
+}
+
+.extractD {
+	background-color: #BDBDFF;
+	color: #FFFFFF;
+	font-size: 20px;
+	text-align: left;
+}
+
+.extractP {
+	background-color: #BDBDBD;
+	color: #FFFFFF;
+	font-size: 20px;
+	text-align: left;
+}
+
+.extractH {
+	background-color: #F5D0A9;
+	font-size: 16px;
+	text-align: center;
+}
+
+.extractL {
+	background-color: #CED8F6;
+	font-size: 18px;
+	text-align: center;
+}
+
+table {
+    border: medium none;
+    width: 100%;
+    font-size: 16px;
+    table-layout: auto;
+}
+
+th {
+    color: #FFFFFF;
+    padding: 10px;
+    background-color: #BDBDFF;
+}
+
+.commonBlock {
+	background-color: #BDBDBD;
+}
+
+.wasteBlock {
+	background-color: #F5D0A9;
+}
+
+.maintenanceBlock {
+	background-color: #CED8F6;
+}

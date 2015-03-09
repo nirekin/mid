@@ -1,0 +1,42 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+	</script>
+</head>
+
+<body>
+<h1>ERP Entries:</h1>
+
+[<a href="/index.html/">Home</a>] [<a href="/erpsources/">ERP Sources</a>]
+
+<table>
+	<tr>
+		<th>Id</th>
+		<th>ErpId</th>
+		<th>CreationDate</th>
+		<th>Name</th>
+		<th>SourceName</th>
+		<th>Edit</th>
+		<th>Delete</th>
+		<th>Sync</th>
+		<th>Erp Fields</th>
+	</tr>
+{{range .}}
+	<tr>
+		<td align="center">{{.Id}}</td>
+		<td align="center">{{.ErpId}}</td>
+		<td align="center">{{.CreationDate}}</td>
+		<td align="center">{{.Name}}</td>
+		<td align="center">{{.SourceName}}</td>
+		<td align="center"><a href="/editErpEntry/{{.Id}}"><img src="/resources/edit.png" alt="edit" style="width:20px;height:20px"></a></td>
+		<td align="center"><a href="/deleteErpEntry/{{.Id}}"><img src="/resources/delete.png" alt="delete" style="width:20px;height:20px"></a></td>
+		<td align="center"><a href="/syncErpEntry/{{.Id}}"> >> </a></td>
+		<td align="center"><a href="/erpListFields/{{.Id}}"> >> </a></td>
+	</tr>
+{{end}}
+</table>
+
+
+</body>
+</html>

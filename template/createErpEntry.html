@@ -1,0 +1,30 @@
+<html>
+<head>
+<link href="/resources/style.css" rel="stylesheet">
+</head>
+
+<body>
+<h1>Create an ERP Entry:</h1>
+
+	ErpId: {{.ErpId}}<br>
+	SourceName: {{.SourceName}}<br>
+
+	<form name="myForm" action="/saveErpEntry/" method="POST">
+	<input type="hidden" value="{{.ErpId}}" name="ErpId" />
+	<input type="hidden" value="{{.SourceName}}" name="SourceName" />
+	<table>
+		<tr class="commonBlock">
+			<td>Name</td>
+			<td><input name="Name" size="25" maxlength="25"/></td>
+		</tr>
+		
+	<table>
+	<div>
+		<input type="submit" value="Save">
+	</div>
+
+
+
+</form>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<html>
+<head>
+<link href="/resources/style.css" rel="stylesheet">
+</head>
+
+<body>
+<h1>Edit an ERP Entry against "Mysql":</h1>
+
+<P>
+	The URL format must be : <b>"user:password@tcp(localhost:3306)/schema"</b>
+<P>
+
+	<form name="myForm" action="/updateMySQL/" method="POST">
+	<input type="hidden" value="{{.Id}}" name="Id" />
+	<table>
+		<tr class="commonBlock">
+			<td>Name</td>
+			<td><input name="Name" size="25" maxlength="25" value="{{printf "%s" .Name}}"/></td>
+		</tr>
+		<tr class="commonBlock">
+			<td>Url</td>
+			<td><input name="Value" size="100" maxlength="100" value="{{printf "%s" .Value}}"/></td>
+		</tr>
+	<table>
+	<div>
+		<input type="submit" value="Save">
+	</div>
+
+
+
+</form>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<html>
+<head>
+<link href="/resources/style.css" rel="stylesheet">
+<script>
+		function submithf1(id){
+			document.forms["hf1"]["FieldId"].value = id;
+			document.forms["hf1"].submit();
+		}
+	</script>
+</head>
+
+<body>
+<h1>Edit an ERP Entry:</h1>
+
+[<a href="/erpentries/">Entries</a>]
+
+	<p>
+	Id: {{.Id}}<br>
+	ErpId: {{.ErpId}}<br>
+	SourceName: {{.SourceName}}<br>
+	Name: {{.Name}}<br>
+
+	<form name="myForm" action="/updateErpEntry/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="Id" />
+		<table>
+			<tr class="commonBlock">
+				<td>Name</td>
+				<td><input name="Name" size="25" maxlength="25" value="{{printf "%s" .Name}}"/></td>
+			</tr>
+
+		<table>
+		<div>
+			<input type="submit" value="Save">
+		</div>
+	</form>
+
+
+<h1>Synchronized fields:</h1>
+
+	<table>
+		<tr>
+			<th>CreationDate</th>
+			<th>FieldName</th>
+			<th>JsonName</th>
+			<th>ErpPk</th>
+			<th>Decorators</th>
+			<th>Edit</th>
+			<th>Delete</th>
+		</tr>
+	{{range .SyncFields}}
+		<tr>
+			<td align="center">{{.CreationDate}}</td>
+			<td align="center">{{.FieldName}}</td>
+			<td align="center">{{.JsonName}}</td>
+			<td align="center">{{if .ErpPk}} Y {{else}} N {{end}}</td>
+			<td align="center">{{.NbDecorator}}</td>
+			<td align="center"><a href="/editSyncField/{{.Id}}"><img src="/resources/edit.png" alt="edit" style="width:20px;height:20px"></a></td>
+			<td align="center"><a href="javascript:submithf1('{{.Id}}');"><img src="/resources/delete.png" alt="delete" style="width:20px;height:20px"></a></td>
+		</tr>
+	{{end}}
+	</table>
+
+	<P>
+
+	<form name="myForm" action="/pingErpEntry/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="Id" />
+		<table>
+			<tr class="commonBlock">
+				<td>NbRows</td>
+				<td><input name="NbRows" size="5" maxlength="5" value="10"></td>
+			</tr>
+
+		<table>
+		<div>
+			<input type="submit" value="Ping">
+		</div>
+	</form>
+
+	<table>
+	{{range .PingLines}}
+		<tr>
+			<td align="left">{{.Content}}</td>
+		</tr>
+	{{end}}
+	</table>
+
+	<form name="hf1" action="/deleteSyncField/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="EntryId" />
+		<input type="hidden" value="" name="FieldId" />
+	</form>
+
+</body>
+</html>

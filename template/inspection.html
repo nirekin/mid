@@ -1,0 +1,75 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+	</script>
+</head>
+
+<body>
+<h1>Inspection of "{{.Entry.Name}}"</h1>
+
+[<a href="/inspect/">Inspect</a>]
+
+<p>
+	Id: {{.Entry.Id}}<br>
+	ErpId: {{.Entry.ErpId}}<br>
+	SourceName: {{.Entry.SourceName}}<br>
+	Name: {{.Entry.Name}}<br>
+
+<p>
+	<div class="commonBlock">
+	Importation Table Name: {{.ImportationTableName}}<br>
+	Imported Rows: <b>{{.ImportedRows}}</b><br>
+	AGV Rows Length: {{.AGVRowsLength}}<br>
+	Data Length: {{.DataLength}}<br>
+	Data Free: {{.DataFree}}<br>
+	Auto Increment: {{.AutoIncrement}}<br>
+	Create Time: {{.CreateTime}}<br>
+	Table Collation: {{.TableCollation}}<br>
+	</div>
+
+<p>
+<h1>List imported content</h1>
+<p>
+
+	<form name="myForm" action="/inspect/{{.Entry.Id}}" method="POST">
+	<table>
+		<div>
+			<input type="submit" value="list">
+		</div>
+		<tr class="commonBlock">
+			<td>Like on ErpPk</td>
+			<td><input name="LikeOnErpPk" size="100" maxlength="100" value="{{printf "%s" .LikeOnErpPk}}"/></td>
+		</tr>
+		<tr class="commonBlock">
+			<td>Like on Content</td>
+			<td><input name="LikeOnContent" size="100" maxlength="100" value="{{printf "%s" .LikeOnContent}}"/></td>
+		</tr>
+		<tr class="commonBlock">
+			<td>Limit ( MAX:500 )</td>
+			<td><input name="Limit" size="5" maxlength="5" value="{{printf "%d" .Limit}}"/></td>
+		</tr>
+	<table>
+	</form>
+	<table>
+		<tr>
+			<th>Name</th>
+			<th>Erp Pk</th>
+			<th>Creation Date</th>
+			<th>Last Update</th>
+			<th>Content</th>
+
+		</tr>
+		{{range .LoadedContentLines	}}
+		<tr>
+			<td align="left">{{.Name}}</td>
+			<td align="left">{{.ErpPk}}</td>
+			<td align="left">{{.CreationDate}}</td>
+			<td align="left">{{.LastUpdate}}</td>
+			<td align="left">{{.Content}}</td>
+		</tr>
+		{{end}}
+	</table>
+
+</body>
+</html>

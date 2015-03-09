@@ -1,0 +1,72 @@
+<html>
+<head>
+<link href="/resources/style.css" rel="stylesheet">
+	<script>
+		function submithf1(id){
+			document.forms["hf1"]["DecId"].value = id;
+			document.forms["hf1"].submit();
+		}
+	</script>
+</head>
+
+<body>
+<h1>Edit a Synchronized field:</h1>
+
+[<a href="/editErpEntry/{{.ErpEntryId}}">Entry</a>]
+
+	<p>
+	Id: {{.Id}}<br>
+	ErpEntryId: {{.ErpEntryId}}<br>
+	CreationDate: {{.CreationDate}}<br>
+	FieldName: {{.FieldName}}<br>
+	JsonName: {{.JsonName}}<br>
+	ErpPk: {{.ErpPk}}<br>
+
+<form name="myForm" action="/updateSyncField/" method="POST">
+		<input type="hidden" value="{{.Id}}" name="Id" />
+		<table>
+			<tr class="commonBlock">
+				<td>JsonName</td>
+				<td><input name="JsonName" size="50" maxlength="50" value="{{printf "%s" .JsonName}}"/></td>
+			</tr>
+			<tr class="commonBlock">
+				<td>ErpPk</td>
+				<td><input type="checkbox" name="ErpPk"  {{if .ErpPk}} checked {{end}}></td>
+			</tr>
+		<table>
+		<div>
+			<input type="submit" value="Save">
+		</div>
+	</form>
+
+
+<h1>Decorators:</h1>
+
+	[<a href="/addDecorator/{{.Id}}">Add Decorator</a>]
+
+	<table>
+		<tr>
+			<th>Name</th>
+			<th>Description</th>
+			<th>SortingOrder</th>
+			<th>Params</th>
+			<th>Delete</th>
+		</tr>
+	{{range .Decorators}}
+		<tr>
+			<td align="center">{{.Name}}</td>
+			<td align="center">{{.Description}}</td>
+			<td align="center">{{.SortingOrder}}</td>
+			<td align="center">{{.Params}}</td>
+			<td align="center"><a href="javascript:submithf1('{{.Id}}');"><img src="/resources/delete.png" alt="delete" style="width:20px;height:20px"></a></td>
+		</tr>
+	{{end}}
+	</table>
+
+	<form name="hf1" action="/deleteDecorator/" method="POST">
+		<input type="hidden" value="" name="DecId" />
+		<input type="hidden" value="{{.Id}}" name="FieldId" />
+	</form>
+
+</body>
+</html>

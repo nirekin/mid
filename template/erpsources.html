@@ -1,0 +1,38 @@
+<html>
+<head>
+	<link href="/resources/style.css" rel="stylesheet">
+	<script>
+	</script>
+</head>
+
+<body>
+<h1>ERP Sources:</h1>
+
+[<a href="/index.html/">Home</a>] [<a href="/erpentries/">Entries</a>]	[<a href="/addMySQL/">add MYSQL Source</a>] [<a href="/addAccess/">add ACCESS Source</a>]
+
+<table>
+	<tr>
+		<th>Id</th>
+		<th>Name</th>
+		<th>Value</th>
+		<th>Type</th>
+		<th>Edit</th>
+		<th>Delete</th>
+		<th>Entries</th>
+	</tr>
+{{range .}}
+	<tr>
+		<td align="center">{{.Id}}</td>
+		<td align="center">{{.Name}}</td>
+		<td align="center">{{.Value}}</td>
+		<td align="center">{{.Type}}</td>
+		<td align="center"><a href="/editErp/{{.Id}}"><img src="/resources/edit.png" alt="edit" style="width:20px;height:20px"></a></td>
+		<td align="center"><a href="/deleteErp/{{.Id}}"><img src="/resources/delete.png" alt="delete" style="width:20px;height:20px"></a></td>
+		<td align="center"><a href="/erpListTables/{{.Id}}"> >> </a></td>
+	</tr>
+{{end}}
+</table>
+
+
+</body>
+</html>
