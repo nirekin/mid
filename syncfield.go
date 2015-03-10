@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"time"
-	"fmt"
 )
 
 type VisibleSyncField struct {
@@ -17,7 +16,6 @@ type VisibleSyncField struct {
 type SyncField struct {
 	CreationDate         string
 	FieldName            string
-	NbDecorator          int
 	JsonName             string
 	ErpPk                bool
 	Id                   int
@@ -28,68 +26,91 @@ type SyncField struct {
 	TestResponse         string
 }
 
-const(
+const (
 	// FIELD
-	COUNT_FIELD_BY_ENTRY  = "SELECT COUNT(*) FROM admin_sync_field WHERE erpEntryId=?"
+	FIELD_SELECT_FIELDS = "SELECT id, erpEntryId, creationDate, fieldName, erpPk, jsonName "
+	FIELD_INSERT_UPDATE = " creationdate=?, erpEntryId=?, fieldName=?, erpPk=?, jsonName=? "
+
 	COUNT_FIELD_USED      = "SELECT COUNT(*) FROM admin_sync_field WHERE erpEntryId=? AND fieldName=?"
-	SELECT_FIELD_BY_ID    = "SELECT id, erpEntryId, creationDate, fieldName, erpPk, jsonName FROM admin_sync_field WHERE id=?"
-	SELECT_FIELD_BY_ENTRY = "SELECT id, erpEntryId, creationDate, fieldName, erpPk, jsonName FROM admin_sync_field WHERE erpEntryId=?"
-	INSERT_FIELD          = "INSERT admin_sync_field SET creationdate=?, erpEntryId=?, fieldName=?, erpPk=?, jsonName=?"
-	UPDATE_FIELD_BY_ID    = "UPDATE admin_sync_field SET creationdate=?, erpEntryId=?, fieldName=?, erpPk=?, jsonName=? WHERE id=?"
+	SELECT_FIELD_BY_ID    = FIELD_SELECT_FIELDS + "FROM admin_sync_field WHERE id=?"
+	SELECT_FIELD_BY_ENTRY = FIELD_SELECT_FIELDS + "FROM admin_sync_field WHERE erpEntryId=?"
+	INSERT_FIELD          = "INSERT admin_sync_field SET " + FIELD_INSERT_UPDATE
+	UPDATE_FIELD_BY_ID    = "UPDATE admin_sync_field SET " + FIELD_INSERT_UPDATE + " WHERE id=?"
 	DELETE_FIELD_BY_ID    = "DELETE FROM admin_sync_field WHERE id=?"
-	DELETE_SYNC_BY_ENTRY  = "Delete from admin_sync_field WHERE erpEntryId=?"
+	DELETE_SYNC_BY_ENTRY  = "DELETE FROM admin_sync_field WHERE erpEntryId=?"
 )
 
-func (o *SyncField) loadDb() {
-	fmt.Printf("loadSyncField\n")
-	st, _ := dbC.Prepare(SELECT_FIELD_BY_ID)
-	defer st.Close()
+func (o *SyncField) loadDb() error {
+	st, err := dbC.Prepare(SELECT_FIELD_BY_ID)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	rows, err := st.Query(o.Id)
 	if err != nil {
-		fmt.Printf("err 03\n")
+		return err
 	}
 
 	for rows.Next() {
 		o.loadFromDbRow(rows)
 	}
+	return nil
 }
 
-func (o *SyncField) saveDb() {
-	fmt.Printf("SyncField saveDb\n")
+func (o *SyncField) saveDb() error {
 	st, err := dbC.Prepare(INSERT_FIELD)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+
 	res, err := st.Exec(time.Now(), o.ErpEntryId, o.FieldName, o.ErpPk, o.FieldName)
+	if err != nil {
+		return err
+	}
+
 	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
 	o.Id = int(id)
-	checkErr(err)
+	return nil
 }
 
-func (o *SyncField) updateDb() {
-	fmt.Printf("SyncField updateDb\n")
+func (o *SyncField) updateDb() error {
 	st, err := dbC.Prepare(UPDATE_FIELD_BY_ID)
-	defer st.Close()
-	checkErr(err)
-	res, err := st.Exec(o.CreationDate, o.ErpEntryId, o.FieldName, o.ErpPk, o.JsonName, o.Id)
-	id, err := res.LastInsertId()
-	o.Id = int(id)
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+	_, err = st.Exec(o.CreationDate, o.ErpEntryId, o.FieldName, o.ErpPk, o.JsonName, o.Id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (o *SyncField) deleteDb() {
+func (o *SyncField) deleteDb() error {
 	st, err := dbC.Prepare(DELETE_FIELD_BY_ID)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	_, err = st.Exec(o.Id)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
 	deleteDecoratorByField(o.Id)
+	return nil
 }
-
 
 func (o *SyncField) loadFromDbRow(rows *sql.Rows) error {
 	err := rows.Scan(&o.Id, &o.ErpEntryId, &o.CreationDate, &o.FieldName, &o.ErpPk, &o.JsonName)
 	if err != nil {
-		fmt.Printf("err 04\n")
 		return err
 	}
 	o.PredefinedDecorators = getPredefinedDecorator()
@@ -101,38 +122,38 @@ func (o *SyncField) decorate(s string) (string, string) {
 	for _, val := range o.Decorators {
 		s = val.decorate(s)
 	}
-
 	return o.JsonName, encodeUTF(s)
 }
 
-func (o *SyncField) loadDbDecorators() {
-	st, _ := dbC.Prepare(COUNT_DECORATOR_BY_FIELD)
-	defer st.Close()
-	rows, err := st.Query(o.Id)
-	checkErr(err)
+func (o *SyncField) loadDbDecorators() error {
+	var tResult [10]Decorator
+	result := tResult[0:0]
 
-	var cpt int
-	for rows.Next() {
-		_ = rows.Scan(&cpt)
+	st, err := dbC.Prepare(SELECT_DECORATOR_BY_FIELD)
+	if err != nil {
+		return err
 	}
-
-	result := make([]Decorator, cpt)
-
-	st, err = dbC.Prepare(SELECT_DECORATOR_BY_FIELD)
-	checkErr(err)
-	rows, err = st.Query(o.Id)
-	checkErr(err)
-	i := 0
+	rows, err := st.Query(o.Id)
+	if err != nil {
+		return err
+	}
 	for rows.Next() {
-		o := &Decorator{}
+		o := Decorator{}
 		o.loadFromDbRow(rows)
 		o.Name = decorators[o.DecoratorId].Name
 		o.Description = decorators[o.DecoratorId].Description
-		result[i] = *o
-		i++
+		result = append(result, o)
 	}
 	o.Decorators = result
-	o.NbDecorator = len(o.Decorators)
+	return nil
+}
+
+func (o *SyncField) NbDecorator() int {
+	if o.Decorators == nil {
+		return 0
+	} else {
+		return len(o.Decorators)
+	}
 }
 
 func (o *SyncField) reOrderDecorators() {
@@ -145,16 +166,18 @@ func (o *SyncField) reOrderDecorators() {
 	}
 }
 
-func initDbSyncField(db *sql.DB) {
-	defer fmt.Printf("Init DB DONE! \n")
-
-	// TABLE FOR SYNC FIELD
-	//sql = "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpEntryId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`fieldName` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+func initDbSyncField(db *sql.DB) error {
 	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpEntryId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`fieldName` varchar(255) NOT NULL DEFAULT '',`jsonName` varchar(255) NOT NULL DEFAULT '',`erpPk` int(10) unsigned DEFAULT '0',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	st, err := db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 
-	
+	_, err = st.Exec()
+	if err != nil {
+		return err
+	}
+	return nil
 }

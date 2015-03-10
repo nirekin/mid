@@ -1,8 +1,6 @@
 package main
 
-import (
-
-)
+import ()
 
 type PingLine struct {
 	Content string

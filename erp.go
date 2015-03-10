@@ -15,7 +15,6 @@ type VisibleErp struct {
 	Entries      []*VisibleErpEntry
 }
 
-
 type Erp struct {
 	CreationDate string
 	TypeInt      int
@@ -27,54 +26,83 @@ type Erp struct {
 	Entries      []ErpEntry
 }
 
-const(
+const (
 	// ERP
-	COUNT_ERP_ALL    = "SELECT COUNT(*) FROM admin_erp"
-	SELECT_ERP_ALL   = "SELECT id, creationDate, typeInt, type, name, value FROM admin_erp"
-	SELECT_ERP_BY_ID = "SELECT id, creationDate, typeInt, type, name, value FROM admin_erp WHERE id=?"
-	INSERT_ERP       = "INSERT admin_erp SET creationdate=?, typeInt=?, type=?, name=?, value=?"
-	UPDATE_ERP_BY_ID = "UPDATE admin_erp SET creationdate=?, typeInt=?, type=?, name=?, value=? WHERE id=?"
+	ERP_SELECT_FIELDS = "SELECT id, creationDate, typeInt, type, name, value "
+	ERP_INSERT_UPDATE = " creationdate=?, typeInt=?, type=?, name=?, value=?"
+
+	SELECT_ERP_ALL   = ERP_SELECT_FIELDS + "FROM admin_erp"
+	SELECT_ERP_BY_ID = ERP_SELECT_FIELDS + "FROM admin_erp WHERE id=?"
+	INSERT_ERP       = "INSERT admin_erp SET " + ERP_INSERT_UPDATE
+	UPDATE_ERP_BY_ID = "UPDATE admin_erp SET " + ERP_INSERT_UPDATE + " WHERE id=?"
 	DELETE_ERP_BY_ID = "DELETE FROM admin_erp WHERE id=?"
+
+	SELECT_ERP_MYSQL = "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = ?"
 )
 
-func (o *Erp) loadDb() {
-	st, _ := dbC.Prepare(SELECT_ERP_BY_ID)
-	defer st.Close()
+func (o *Erp) loadDb() error {
+	st, err := dbC.Prepare(SELECT_ERP_BY_ID)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	rows, err := st.Query(o.Id)
 	if err != nil {
-		fmt.Printf("err 03\n")
+		return err
 	}
 	for rows.Next() {
 		o.loadFromDbRow(rows)
 	}
+	return nil
 }
 
-func (o *Erp) saveDb() {
-	st, _ := dbC.Prepare(INSERT_ERP)
-	defer st.Close()
-	_, err := st.Exec(time.Now(), o.TypeInt, o.Type, o.Name, o.Value)
-	checkErr(err)
+func (o *Erp) saveDb() error {
+	st, err := dbC.Prepare(INSERT_ERP)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+	_, err = st.Exec(time.Now(), o.TypeInt, o.Type, o.Name, o.Value)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (o *Erp) updateDb() {
-	st, _ := dbC.Prepare(UPDATE_ERP_BY_ID)
-	defer st.Close()
-	_, err := st.Exec(o.CreationDate, o.TypeInt, o.Type, o.Name, o.Value, o.Id)
-	checkErr(err)
+func (o *Erp) updateDb() error {
+	st, err := dbC.Prepare(UPDATE_ERP_BY_ID)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+	_, err = st.Exec(o.CreationDate, o.TypeInt, o.Type, o.Name, o.Value, o.Id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (o *Erp) deleteDb() {
-	l := getErpEntries()
+func (o *Erp) deleteDb() error {
+	l, _ := getErpEntries()
 	for _, val := range l {
 		if val.ErpId == o.Id {
 			val.deleteDb() // TODO Optimize this
 		}
 	}
 	st, err := dbC.Prepare(DELETE_ERP_BY_ID)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	_, err = st.Exec(o.Id)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *Erp) HasSources() bool {
@@ -82,45 +110,37 @@ func (p *Erp) HasSources() bool {
 }
 
 func (p *Erp) lazyLoadTables() error {
-	fmt.Printf("Erp lazyLoadTables\n")
 	if p.TypeInt == MYSQL_TYPE {
 		desiredSchema := getMySqlSchema(p.Value)
-		fmt.Printf("desiredSchema %v\n", desiredSchema)
-		dbCErp, _ := sql.Open("mysql", p.Value)
-		//dbCErp.SetMaxIdleConns(500)
-		//dbCErp.SetMaxOpenConns(400)
+		dbCErp, err := sql.Open("mysql", p.Value)
+		if err != nil {
+			return err
+		}
 		defer dbCErp.Close()
-		st, err := dbCErp.Prepare(COUNT_ERP_MYSQL)
-		defer st.Close()
-		checkErr(err)
-		rows, err := st.Query(desiredSchema)
-		checkErr(err)
 
-		var cpt int
-		for rows.Next() {
-			_ = rows.Scan(&cpt)
+		var tResult [10]ErpSource
+		result := tResult[0:0]
+
+		st, err := dbC.Prepare(SELECT_ERP_MYSQL)
+		if err != nil {
+			return err
+		}
+		rows, err := st.Query(desiredSchema)
+		if err != nil {
+			return err
 		}
 
-		result := make([]ErpSource, cpt)
-		st, err = dbC.Prepare(SELECT_ERP_MYSQL)
-		checkErr(err)
-		rows, err = st.Query(desiredSchema)
-		checkErr(err)
-		i := 0
 		nameLoaded := false
 		for rows.Next() {
-			fmt.Printf("row.Next %v\n", i)
 			nameLoaded = true
-			e := &ErpSource{}
+			e := ErpSource{}
 			e.ErpId = p.Id
 			err := rows.Scan(&e.Name)
 			if err != nil {
-				fmt.Printf("err 04 %v\n", err)
 				return err
 			}
 			e.loadUsed()
-			result[i] = *e
-			i++
+			result = append(result, e)
 		}
 		if nameLoaded {
 			fmt.Printf("loaded %v\n", nameLoaded)
@@ -136,85 +156,74 @@ func (p *Erp) lazyLoadTables() error {
 		p.Sources = result
 		return nil
 	}
+	return nil
 }
 
 func (p *Erp) loadFromDbRow(rows *sql.Rows) error {
 	err := rows.Scan(&p.Id, &p.CreationDate, &p.TypeInt, &p.Type, &p.Name, &p.Value)
 	if err != nil {
-		fmt.Printf("err 04\n")
 		return err
 	}
 	return nil
 }
 
-func (p *Erp) loadErpEntries() {
-	fmt.Printf("Erp loadErpEntries\n")
-	st, err := dbC.Prepare(COUNT_ENTRY_BY_ERP)
-	defer st.Close()
-	checkErr(err)
+func (p *Erp) loadErpEntries() error {
+	var tResult [10]ErpEntry
+	result := tResult[0:0]
+
+	st, err := dbC.Prepare(SELECT_ENTRY_BY_ERP)
+	if err != nil {
+		return err
+	}
 
 	rows, err := st.Query(p.Id)
-	checkErr(err)
-
-	var cpt int
-	for rows.Next() {
-		_ = rows.Scan(&cpt)
+	if err != nil {
+		return err
 	}
-
-	result := make([]ErpEntry, cpt)
-
-	st, err = dbC.Prepare(SELECT_ENTRY_BY_ERP)
-	checkErr(err)
-
-	rows, err = st.Query(p.Id)
-	checkErr(err)
-	i := 0
 	for rows.Next() {
-		o := &ErpEntry{}
+		o := ErpEntry{}
 		o.loadFromDbRow(rows)
-		result[i] = *o
-		i++
+		result = append(result, o)
 	}
 	p.Entries = result
+	return nil
 }
 
-func getErps() []Erp {
-	fmt.Printf("getErps\n")
-	st, err := dbC.Prepare(COUNT_ERP_ALL)
-	defer st.Close()
-	checkErr(err)
+func getErps() ([]Erp, error) {
+	var tResult [10]Erp
+	result := tResult[0:0]
+
+	st, err := dbC.Prepare(SELECT_ERP_ALL)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := st.Query()
-	checkErr(err)
-
-	var cpt int
-	for rows.Next() {
-		_ = rows.Scan(&cpt)
+	if err != nil {
+		return nil, err
 	}
-	result := make([]Erp, cpt)
 
-	st, err = dbC.Prepare(SELECT_ERP_ALL)
-	checkErr(err)
-
-	rows, err = st.Query()
-	checkErr(err)
-	i := 0
 	for rows.Next() {
-		o := &Erp{}
+		o := Erp{}
 		o.loadFromDbRow(rows)
-		result[i] = *o
-		i++
+		result = append(result, o)
 	}
-	return result
+	return result, nil
 }
 
-func initDbErp(db *sql.DB) {
-
-	// TABLE FOR ERP
+func initDbErp(db *sql.DB) error {
 	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp` (`id` INTEGER UNSIGNED NOT NULL AUTO_INCREMENT,`creationDate` DATETIME NOT NULL DEFAULT 0,`typeInt` INTEGER UNSIGNED NOT NULL DEFAULT 0,`type` VARCHAR(45) NOT NULL DEFAULT '',`name` VARCHAR(45) NOT NULL DEFAULT '',`value` longtext, PRIMARY KEY(`id`))ENGINE = InnoDB;"
 	st, err := db.Prepare(sql)
 	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+
 	_, err = st.Exec()
-	checkErr(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -1,12 +1,12 @@
 package main
 
 import (
-	"strings"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 )
 
-// encode 
 func encodeUTF(s string) string {
 	// TODO check to implement a real encoding
 	s = strings.Replace(s, "!", "U+0021", -1)
@@ -40,8 +40,6 @@ func getMySqlSchema(value string) string {
 	return desiredSchema
 }
 
-
-
 func eqstring(s1 string, s2 string) (v bool) {
 	if s1 == s2 {
 		v = true
@@ -51,3 +49,6 @@ func eqstring(s1 string, s2 string) (v bool) {
 	return
 }
 
+func getNowMillisecond() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
+}

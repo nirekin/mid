@@ -2,11 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"strings"
-	"fmt"
 	"encoding/json"
-	"strconv"
+	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 type VisibleDecorator struct {
@@ -43,13 +43,15 @@ type Decorator struct {
 
 type DecoratorMap map[int]*PredefinedDecorator
 
-const(
+const (
 
 	// DECORATOR
-	COUNT_DECORATOR_BY_FIELD  = "SELECT COUNT(*) FROM admin_sync_field_decorator WHERE syncFieldId=?"
-	SELECT_DECORATOR_BY_FIELD = "SELECT id, decoratorId, syncFieldId, sortingOrder, params FROM admin_sync_field_decorator WHERE syncFieldId=? ORDER BY sortingOrder"
-	INSERT_DECORATOR          = "INSERT admin_sync_field_decorator SET decoratorId=?, syncFieldId=?, sortingOrder=?, params=?"
-	UPDATE_DECORATOR_BY_ID    = "UPDATE admin_sync_field_decorator SET decoratorId=?, syncFieldId=?, sortingOrder=?, params=? WHERE id=?"
+	DECORATOR_SELECT_FIELDS = "SELECT id, decoratorId, syncFieldId, sortingOrder, params "
+	DECORATOR_INSERT_UPDATE = " decoratorId=?, syncFieldId=?, sortingOrder=?, params=?"
+
+	SELECT_DECORATOR_BY_FIELD = DECORATOR_SELECT_FIELDS + " FROM admin_sync_field_decorator WHERE syncFieldId=? ORDER BY sortingOrder"
+	INSERT_DECORATOR          = "INSERT admin_sync_field_decorator SET " + DECORATOR_INSERT_UPDATE
+	UPDATE_DECORATOR_BY_ID    = "UPDATE admin_sync_field_decorator SET " + DECORATOR_INSERT_UPDATE + " WHERE id=?"
 	DELETE_DECORATOR_BY_ID    = "DELETE FROM admin_sync_field_decorator WHERE id=?"
 	DELETE_DECORATOR_BY_FIELD = "DELETE FROM admin_sync_field_decorator WHERE syncFieldId=?"
 )
@@ -57,57 +59,76 @@ const(
 func (o *Decorator) loadFromDbRow(rows *sql.Rows) error {
 	err := rows.Scan(&o.Id, &o.DecoratorId, &o.SyncFieldId, &o.SortingOrder, &o.Params)
 	if err != nil {
-		fmt.Printf("err 04\n")
 		return err
 	}
 	return nil
 }
 
 func (o *Decorator) getParamValue(name string) string {
-	fmt.Printf("Decorator getParamValue\n")
 	var f interface{}
 	_ = json.Unmarshal([]byte(o.Params), &f)
 	m := f.(map[string]interface{})
 	return fmt.Sprintf("%v", m[name])
 }
 
-func (o *Decorator) saveDb() {
-	fmt.Printf("Decorator saveDb\n")
-	st, _ := dbC.Prepare(INSERT_DECORATOR)
-	defer st.Close()
-	_, err := st.Exec(o.DecoratorId, o.SyncFieldId, o.SortingOrder, o.Params)
-	checkErr(err)
+func (o *Decorator) saveDb() error {
+	st, err := dbC.Prepare(INSERT_DECORATOR)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+	_, err = st.Exec(o.DecoratorId, o.SyncFieldId, o.SortingOrder, o.Params)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (o *Decorator) updateDb() {
-	fmt.Printf("Decorator updateDB\n")
-	st, _ := dbC.Prepare(UPDATE_DECORATOR_BY_ID)
-	defer st.Close()
-	_, err := st.Exec(o.DecoratorId, o.SyncFieldId, o.SortingOrder, o.Params, o.Id)
-	checkErr(err)
+func (o *Decorator) updateDb() error {
+	st, err := dbC.Prepare(UPDATE_DECORATOR_BY_ID)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
+	_, err = st.Exec(o.DecoratorId, o.SyncFieldId, o.SortingOrder, o.Params, o.Id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (o *Decorator) deleteDb() {
-	fmt.Printf("Decorator deleteDb\n")
 	deleteDecoratorById(o.Id)
 }
 
-func deleteDecoratorByField(id int) {
-	fmt.Printf("deleteDecoratorByFild\n")
+func deleteDecoratorByField(id int) error {
 	st, err := dbC.Prepare(DELETE_DECORATOR_BY_FIELD)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	_, err = st.Exec(id)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func deleteDecoratorById(id int) {
-	fmt.Printf("Decorator deleteDb\n")
+func deleteDecoratorById(id int) error {
 	st, err := dbC.Prepare(DELETE_DECORATOR_BY_ID)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	_, err = st.Exec(id)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (self *PredefinedDecorator) Decorate(d Decorator, s string) string {
@@ -200,7 +221,6 @@ func initDecorators() {
 
 	d.FDecorate = func(pd *PredefinedDecorator, d *Decorator, s string) string {
 		ln, _ := strconv.Atoi(d.getParamValue("len"))
-		fmt.Printf("1500 len %v\n", ln)
 		if len(s) > ln-1 {
 			return s[ln:len(s)]
 		} else if len(s) <= ln {
@@ -343,8 +363,7 @@ func (o *Decorator) decorate(s string) string {
 }
 
 func getPredefinedDecorator() []*PredefinedDecorator {
-	cpt := len(decorators)
-	result := make([]*PredefinedDecorator, cpt)
+	result := make([]*PredefinedDecorator, len(decorators))
 
 	var keys []int
 	for k := range decorators {
@@ -357,14 +376,18 @@ func getPredefinedDecorator() []*PredefinedDecorator {
 	return result
 }
 
-func initDbDecorator(db *sql.DB) {
-	defer fmt.Printf("Init DB DONE! \n")
-
-	// TABLE FOR SYNC FIELD DECORATOR
+func initDbDecorator(db *sql.DB) error {
 	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_sync_field_decorator` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT, `decoratorId` int(10) unsigned NOT NULL DEFAULT '0', `syncFieldId` int(10) unsigned NOT NULL DEFAULT '0', `sortingOrder` int(10) unsigned NOT NULL DEFAULT '0', `params` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
 	st, err := db.Prepare(sql)
-	checkErr(err)
-	_, err = st.Exec()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 
+	_, err = st.Exec()
+	if err != nil {
+		return err
+	}
+	return nil
 }

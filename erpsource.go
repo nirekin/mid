@@ -1,8 +1,6 @@
 package main
 
-import (
-	
-)
+import ()
 
 type ErpSource struct {
 	ErpId int
@@ -10,13 +8,19 @@ type ErpSource struct {
 	Used  int
 }
 
-func (o *ErpSource) loadUsed() {
+func (o *ErpSource) loadUsed() error {
 	st, err := dbC.Prepare(COUNT_ENTRY_USED)
-	defer st.Close()
-	checkErr(err)
+	if err != nil {
+		return err
+	} else {
+		defer st.Close()
+	}
 	rows, err := st.Query(o.ErpId, o.Name)
-	checkErr(err)
+	if err != nil {
+		return err
+	}
 	for rows.Next() {
 		err = rows.Scan(&o.Used)
 	}
+	return nil
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	//"fmt"
 )
 
 type CentralConfig struct {
@@ -11,8 +11,7 @@ type CentralConfig struct {
 }
 
 func (o *CentralConfig) toJson() {
-	fmt.Printf("CentralConfig toJSon\n")
-	o.Erps = getErps()
+	o.Erps, _ = getErps()
 
 	vErps := make([]*VisibleErp, len(o.Erps))
 	for er := 0; er < len(o.Erps); er++ {

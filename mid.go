@@ -3,16 +3,12 @@ package main
 /*
 Install of go-sql-driver
 
-Define the GOPATH in system variable
-Make sure Git is installed on your machine and in your system's PATH. Then simple run in your system's shell:
 
 go get github.com/go-sql-driver/mysql
 go get github.com/mxk/go-sqlite/sqlite3   --> mingv-w64	github.com/mxk/go-sqlite/sqlite3
 
 DOC https://gobyexample.com/time-formatting-parsing
 t := fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d", fromTime.Year(), fromTime.Month(), fromTime.Day(), fromTime.Hour(), fromTime.Minute(), fromTime.Second())
-
-fmt.Printf("blable %d\n" , id)
 
 TODO :
 
@@ -23,7 +19,7 @@ TODO :
 - Ping for erp
 - JS validation in all forms
 - Entry hierarchy mother/child
-- Log for extraction
+- Log for extraction --> SyncEvent
 - Log for error
 - Synchronizer by entry o for all entries ?
 
@@ -73,11 +69,6 @@ type ExtractedContentMap map[string]*ExtractedContent
 const (
 
 	// MYSQL
-	COUNT_ERP_MYSQL    = "SELECT COUNT(*) FROM information_schema.tables WHERE TABLE_SCHEMA = ?"
-	COUNT_TABLE_MYSQL  = "SELECT COUNT(*) FROM information_schema.columns WHERE TABLE_SCHEMA = ? AND TABLE_NAME =?"
-	SELECT_ERP_MYSQL   = "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = ?"
-	SELECT_TABLE_MYSQL = "select COLUMN_NAME from information_schema.columns where TABLE_SCHEMA = ? AND TABLE_NAME =?"
-
 	MYSQL_TYPE       = 1
 	MYSQL_TYPE_SPLIT = "__/$/__"
 	MYSQL_TYPE_EMPTY = "__/#/__"
@@ -150,21 +141,18 @@ func init() {
 }
 
 func erpsourcesHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("erpsourcesHandler\n")
 	t, _ := template.ParseFiles("./template/erpsources.html")
-	all := getErps()
+	all, _ := getErps()
 	t.Execute(w, all)
 }
 
 func erpentriesHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("erpentriesHandler\n")
 	t, _ := template.ParseFiles("./template/erpentries.html")
-	all := getErpEntries()
+	all, _ := getErpEntries()
 	t.Execute(w, all)
 }
 
 func erpListTablesHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("erpListTablesHandler\n")
 	t, _ := template.ParseFiles("./template/erpListTables.html")
 	i, _ := strconv.Atoi(r.URL.Path[len("/erpListTables/"):])
 	erp := &Erp{Id: i}
@@ -174,7 +162,6 @@ func erpListTablesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func erpListFieldsHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("erpListFieldsHandler\n")
 	t, _ := template.ParseFiles("./template/erpListFields.html")
 	i, _ := strconv.Atoi(r.URL.Path[len("/erpListTables/"):])
 	ent := &ErpEntry{Id: i}
@@ -184,7 +171,6 @@ func erpListFieldsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func createErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("createErpEntryHandler\n")
 	t, _ := template.ParseFiles("./template/createErpEntry.html")
 	o := &ErpEntry{}
 	i, _ := strconv.Atoi(r.FormValue("Id"))
@@ -194,7 +180,6 @@ func createErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("saveErpEntryHandler\n")
 	o := &ErpEntry{}
 	o.ErpId, _ = strconv.Atoi(r.FormValue("ErpId"))
 	o.SourceName = r.FormValue("SourceName")
@@ -205,7 +190,6 @@ func saveErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("updateErpEntryHandler\n")
 	i, _ := strconv.Atoi(r.FormValue("Id"))
 	ent := &ErpEntry{Id: i}
 	ent.loadDb()
@@ -215,7 +199,6 @@ func updateErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func pingErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("pingErpEntryHandler\n")
 	t, _ := template.ParseFiles("./template/editErpEntry.html")
 	i, _ := strconv.Atoi(r.FormValue("Id"))
 	nbRows, _ := strconv.Atoi(r.FormValue("NbRows"))
@@ -226,7 +209,6 @@ func pingErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func pingTestErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("pingTestErpEntryHandler\n")
 	t, _ := template.ParseFiles("./template/addDecorator.html")
 	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
 	f := &SyncField{Id: idf}
@@ -241,7 +223,6 @@ func pingTestErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func syncErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("syncErpEntryHandler\n")
 	i, _ := strconv.Atoi(r.URL.Path[len("/syncErpEntry/"):])
 	ent := &ErpEntry{Id: i}
 	ent.loadDb()
@@ -250,7 +231,6 @@ func syncErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("deleteErpEntryHandler\n")
 	i, _ := strconv.Atoi(r.URL.Path[len("/deleteErpEntry/"):])
 	ent := &ErpEntry{Id: i}
 	ent.loadDb() // TODO check if the load is required here
@@ -259,7 +239,6 @@ func deleteErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteSyncFielddHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("deleteSyncFielddHandler\n")
 	fieldId := r.FormValue("FieldId")
 	entryId := r.FormValue("EntryId")
 	idf, _ := strconv.Atoi(fieldId)
@@ -270,7 +249,6 @@ func deleteSyncFielddHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func editSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("editSyncFieldHandler\n")
 	t, _ := template.ParseFiles("./template/editSyncField.html")
 	i, _ := strconv.Atoi(r.URL.Path[len("/editSyncField/"):])
 	f := &SyncField{Id: i}
@@ -279,7 +257,6 @@ func editSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("updateSyncFieldHandler\n")
 	fieldId := r.FormValue("Id")
 	jsonName := r.FormValue("JsonName")
 	i, _ := strconv.Atoi(fieldId)
@@ -292,7 +269,6 @@ func updateSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteDecoratorHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("deleteDecoratorHandler\n")
 	t, _ := template.ParseFiles("./template/editSyncField.html")
 	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
 	idd, _ := strconv.Atoi(r.FormValue("DecId"))
@@ -304,7 +280,6 @@ func deleteDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteDecoratorInAddHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("deleteDecoratorInAddHandler\n")
 	fieldId := r.FormValue("FieldId")
 	decId := r.FormValue("DecId")
 	idd, _ := strconv.Atoi(decId)
@@ -317,7 +292,6 @@ func deleteDecoratorInAddHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteErpHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("deleteErpHandler\n")
 	i, _ := strconv.Atoi(r.URL.Path[len("/deleteErp/"):])
 	erp := &Erp{Id: i}
 	erp.loadDb() // Check if the load is required here
@@ -326,7 +300,6 @@ func deleteErpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func editErpHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("editErpHandler\n")
 	i, _ := strconv.Atoi(r.URL.Path[len("/editErp/"):])
 	erp := &Erp{Id: i}
 	erp.loadDb()
@@ -340,7 +313,6 @@ func editErpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func editErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("editErpEntryHandler\n")
 	t, _ := template.ParseFiles("./template/editErpEntry.html")
 	i, _ := strconv.Atoi(r.URL.Path[len("/editErpEntry/"):])
 	ent := &ErpEntry{Id: i}
@@ -349,7 +321,6 @@ func editErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func createSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("createSyncFieldHandler\n")
 	o := &SyncField{}
 	o.ErpEntryId, _ = strconv.Atoi(r.FormValue("Id"))
 	o.FieldName = r.FormValue("FieldName")
@@ -358,12 +329,10 @@ func createSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func addMySQLHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("addMySQLHandler\n")
 	http.Redirect(w, r, "/createMySQL.html", http.StatusFound)
 }
 
 func createMySQLHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("createMySQLHandler\n")
 	o := &Erp{}
 	o.TypeInt = MYSQL_TYPE
 	o.Type = "MySql"
@@ -374,7 +343,6 @@ func createMySQLHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateMySQLHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("updateMySQLHandler\n")
 	i, _ := strconv.Atoi(r.FormValue("Id"))
 	erp := &Erp{Id: i}
 	erp.loadDb()
@@ -385,18 +353,15 @@ func updateMySQLHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func addAccessHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("addAccessHandler\n")
 	http.Redirect(w, r, "/createAccess.html", http.StatusFound)
 }
 
 func adminHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("adminHandler\n")
 	t, _ := template.ParseFiles("./template/admin.html")
 	t.Execute(w, nil)
 }
 
 func viewConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("viewConfigJSonHandler\n")
 	t, _ := template.ParseFiles("./template/viewConfigJson.html")
 	c := &CentralConfig{}
 	c.toJson()
@@ -404,13 +369,11 @@ func viewConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func importConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("importConfigJSonHandler\n")
 	t, _ := template.ParseFiles("./template/importConfigJson.html")
 	t.Execute(w, nil)
 }
 
 func addDecoratorHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("addDecoratorHandler\n")
 	t, _ := template.ParseFiles("./template/addDecorator.html")
 	i, _ := strconv.Atoi(r.URL.Path[len("/addDecorator/"):])
 	f := &SyncField{Id: i}
@@ -419,7 +382,6 @@ func addDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func requestAddDecoratorHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("requestAddDecoratorHandler\n")
 	decI, _ := strconv.Atoi(r.FormValue("DecoratorId"))
 	fieldId := r.FormValue("FieldId")
 	idf, _ := strconv.Atoi(fieldId)
@@ -451,7 +413,6 @@ func requestAddDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func requestAddDecoratorParamHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("requestAddDecoratorParamHandler\n")
 	t, _ := template.ParseFiles("./template/addDecorator.html")
 	decI, _ := strconv.Atoi(r.FormValue("DecoratorId"))
 	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
@@ -472,7 +433,6 @@ func requestAddDecoratorParamHandler(w http.ResponseWriter, r *http.Request) {
 	d.SortingOrder = len(f.Decorators) + 1
 	d.saveDb()
 	f.loadDbDecorators()
-
 	t.Execute(w, f)
 }
 
@@ -480,7 +440,8 @@ func inspectHandler(w http.ResponseWriter, r *http.Request) {
 	i, err := strconv.Atoi(r.URL.Path[len("/inspect/"):])
 	if err != nil {
 		t, _ := template.ParseFiles("./template/inspectList.html")
-		t.Execute(w, getErpEntries())
+		ens, _ := getErpEntries()
+		t.Execute(w, ens)
 	} else {
 		t, _ := template.ParseFiles("./template/inspection.html")
 		en := &ErpEntry{Id: i}
@@ -514,16 +475,21 @@ func inspectHandler(w http.ResponseWriter, r *http.Request) {
 		ie.LikeOnErpPk = likeOnErpPk
 		likeOnContent := r.FormValue("LikeOnContent")
 		ie.LikeOnContent = likeOnContent
-		ie.LoadedContentLines = en.getLoadedContent(likeOnErpPk, likeOnContent, ie.Limit)
+		ie.LoadedContentLines, _ = en.getLoadedContent(likeOnErpPk, likeOnContent, ie.Limit)
 		t.Execute(w, ie)
 	}
 }
 
 func initDb(db *sql.DB) {
 	defer fmt.Printf("Init DB DONE! \n")
-	initDbErp(db)
-	initDbEntry(db)
-	initDbSyncField(db)
-	initDbDecorator(db)
-	initDbSyncEvent(db)
+	err := initDbErp(db)
+	checkErr(err)
+	err = initDbEntry(db)
+	checkErr(err)
+	err = initDbSyncField(db)
+	checkErr(err)
+	err = initDbDecorator(db)
+	checkErr(err)
+	err = initDbSyncEvent(db)
+	checkErr(err)
 }
