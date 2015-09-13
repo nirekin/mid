@@ -2,18 +2,21 @@ package main
 
 import (
 	"encoding/json"
-	//"fmt"
+	"encoding/xml"
 )
 
-
 type CentralConfig struct {
-	Erps        []Erp
-	JSonContent string
+	Erps          []Erp
+	visibleConfig *visibleConfig
 }
 
-func (o *CentralConfig) toJson() {
-	o.Erps, _ = getErps()
+type visibleConfig struct {
+	VisibleErps []*VisibleErp `xml:"erps>erp"`
+}
 
+func (o *CentralConfig) loadConfig() {
+	o.Erps, _ = getErps()
+	c := &visibleConfig{}
 	vErps := make([]*VisibleErp, len(o.Erps))
 	for er := 0; er < len(o.Erps); er++ {
 		erp := o.Erps[er]
@@ -63,10 +66,18 @@ func (o *CentralConfig) toJson() {
 		}
 		vErps[er] = ve
 	}
+	c.VisibleErps = vErps
+	o.visibleConfig = c
+}
 
-	b, _ := json.Marshal(vErps)
-	json := "{\"erps\":"
-	json += string(b)
-	json += "}"
-	o.JSonContent = json
+func (o *CentralConfig) toJson() string {
+	o.loadConfig()
+	b, _ := json.MarshalIndent(o.visibleConfig, "", "    ")
+	return string(b)
+}
+
+func (o *CentralConfig) toXml() string {
+	o.loadConfig()
+	b, _ := xml.MarshalIndent(o.visibleConfig, "  ", "    ")
+	return string(b)
 }

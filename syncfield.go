@@ -6,56 +6,46 @@ import (
 )
 
 type VisibleSyncField struct {
-	CreationDate string
-	FieldName    string
-	JsonName     string
-	ErpPk        bool
-	Decoratos    []*VisibleDecorator
+	CreationDate string              `xml:"creationDate"`
+	FieldName    string              `xml:"fieldName"`
+	JsonName     string              `xml:"jsonName"`
+	ErpPk        bool                `xml:"erpPk"`
+	Decoratos    []*VisibleDecorator `xml:"decorators>decorator"`
 }
 
 type SyncField struct {
+	DBEntity
 	CreationDate         string
 	FieldName            string
 	JsonName             string
 	ErpPk                bool
-	Id                   int
 	ErpEntryId           int
 	Decorators           []Decorator
 	PredefinedDecorators []*PredefinedDecorator
-	TestContent          string
-	TestResponse         string
 }
 
 const (
 	// FIELD
+	FIELD_TABLE_NAME    = "admin_sync_field"
 	FIELD_SELECT_FIELDS = "SELECT id, erpEntryId, creationDate, fieldName, erpPk, jsonName "
+
 	FIELD_INSERT_UPDATE = " creationdate=?, erpEntryId=?, fieldName=?, erpPk=?, jsonName=? "
 
-	COUNT_FIELD_USED      = "SELECT COUNT(*) FROM admin_sync_field WHERE erpEntryId=? AND fieldName=?"
-	SELECT_FIELD_BY_ID    = FIELD_SELECT_FIELDS + "FROM admin_sync_field WHERE id=?"
-	SELECT_FIELD_BY_ENTRY = FIELD_SELECT_FIELDS + "FROM admin_sync_field WHERE erpEntryId=?"
-	INSERT_FIELD          = "INSERT admin_sync_field SET " + FIELD_INSERT_UPDATE
-	UPDATE_FIELD_BY_ID    = "UPDATE admin_sync_field SET " + FIELD_INSERT_UPDATE + " WHERE id=?"
-	DELETE_FIELD_BY_ID    = "DELETE FROM admin_sync_field WHERE id=?"
-	DELETE_SYNC_BY_ENTRY  = "DELETE FROM admin_sync_field WHERE erpEntryId=?"
+	COUNT_FIELD_USED      = "SELECT COUNT(*) FROM " + FIELD_TABLE_NAME + " WHERE erpEntryId=? AND fieldName=?"
+	SELECT_FIELD_BY_ENTRY = FIELD_SELECT_FIELDS + "FROM " + FIELD_TABLE_NAME + " WHERE erpEntryId=?"
+	INSERT_FIELD          = "INSERT " + FIELD_TABLE_NAME + " SET " + FIELD_INSERT_UPDATE
+	UPDATE_FIELD_BY_ID    = "UPDATE " + FIELD_TABLE_NAME + " SET " + FIELD_INSERT_UPDATE + " WHERE id=?"
 )
 
 func (o *SyncField) loadDb() error {
-	st, err := dbC.Prepare(SELECT_FIELD_BY_ID)
-	if err != nil {
-		return err
+	if rows, err := selectById(o); err == nil {
+		for rows.Next() {
+			o.loadFromDbRow(rows)
+		}
+		return nil
 	} else {
-		defer st.Close()
-	}
-	rows, err := st.Query(o.Id)
-	if err != nil {
 		return err
 	}
-
-	for rows.Next() {
-		o.loadFromDbRow(rows)
-	}
-	return nil
 }
 
 func (o *SyncField) saveDb() error {
@@ -93,18 +83,21 @@ func (o *SyncField) updateDb() error {
 	return nil
 }
 
+func (o *SyncField) loadChildDecorator() {
+	o.loadDbDecorators()
+	children := make([]Deleter, len(o.Decorators))
+	for i, val := range o.Decorators {
+		children[i] = val
+	}
+	o.Children = children
+}
+
 func (o *SyncField) deleteDb() error {
-	st, err := dbC.Prepare(DELETE_FIELD_BY_ID)
-	if err != nil {
-		return err
-	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(o.Id)
+	o.loadChildDecorator()
+	err := delete(o)
 	if err != nil {
 		return err
 	}
-	deleteDecoratorByField(o.Id)
 	return nil
 }
 
@@ -180,4 +173,12 @@ func initDbSyncField(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+func (e SyncField) getTableName() string {
+	return FIELD_TABLE_NAME
+}
+
+func (e SyncField) getSelectFields() string {
+	return FIELD_SELECT_FIELDS
 }

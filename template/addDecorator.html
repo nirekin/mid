@@ -1,16 +1,41 @@
 <html>
 <head>
 	<link href="/resources/style.css" rel="stylesheet">
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
 	<script>
 		function submithf1(id){
 			document.forms["hf1"]["DecId"].value = id;
 			document.forms["hf1"].submit();
 		}
+
+		$(document).ready(function(){
+			 $(document).ajaxStart(function(){
+		        $("#wait").css("display", "block");
+		    });
+		    $(document).ajaxComplete(function(){
+		        $("#wait").css("display", "none");
+    		});
+
+			$("#pingButton").click(function(e){
+				e.preventDefault();
+				$.post("/pingAsyncTestErpEntry/",
+				    {
+				        FieldId: "{{.Id}}",
+				        TestContent: $("#textStr").val()
+				    },
+				    function(data, status){
+				        $("#pingContent").html(data);
+    				});
+			});
+		});
 	</script>
 </head>
 
 <body>
+
 <h1>Add a decorator:</h1>
+
+[<a href="/editSyncField/{{.Id}}">SyncField</a>]
 
 	<p>
 	Id: {{.Id}}<br>
@@ -53,33 +78,22 @@
 
 </table>
 
-	<form name="myForm" action="/pingTestErpEntry/" method="POST">
-		<input type="hidden" value="{{.Id}}" name="FieldId" />
-		<table>
-			<tr class="commonBlock">
-				<td>Imput</td>
-				<td><input name="TestContent" size="150" maxlength="150" value="Enter here the content to test"></td>
-			</tr>
-		
-		<table>
-		<div>
-			<input type="submit" value="Test">
-		</div>
-	</form>
+<table>
+	<tr class="commonBlock">
+		<td>Imput</td>
+		<td><input id="textStr" size="150" maxlength="150" value="Enter here the content to test"></td>
+	</tr>
 
-	<table>
-		<tr>
-			<td align="left">{{.TestContent}}</td>
-		</tr>
-		<tr>
-			<td align="left">{{.TestResponse}}</td>
-		</tr>	
-	</table>
+<table>
+
+<div id="wait" style="display:none;width:69px;height:89px;border:1px solid black;position:absolute;top:50%;left:50%;padding:2px;"><img src='/resources/loading.gif' width="64" height="64" /><br>Loading..</div>
+
+<button id="pingButton">Test</button>
+<p id="pingContent"></p>
 
 <form name="hf1" action="/deleteDecoratorInAdd/" method="POST">
 		<input type="hidden" value="" name="DecId" />
 		<input type="hidden" value="{{.Id}}" name="FieldId" />
 	</form>
-
 </body>
 </html>

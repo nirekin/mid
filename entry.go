@@ -10,21 +10,21 @@ import (
 )
 
 type VisibleErpEntry struct {
-	CreationDate string
-	SourceName   string
-	Name         string
-	Fields       []*VisibleSyncField
+	CreationDate string              `xml:"creationdate"`
+	SourceName   string              `xml:"sourceName"`
+	Name         string              `xml:"name"`
+	Fields       []*VisibleSyncField `xml:"fields>field"`
 }
 
 type ErpEntry struct {
+	DBEntity
 	CreationDate string
 	SourceName   string
 	Name         string
-	Id           int
 	ErpId        int
+	BlockSize    int
 	Fields       []ErpRField
 	SyncFields   []SyncField
-	PingLines    []PingLine
 }
 
 type InspectedEntry struct {
@@ -45,16 +45,15 @@ type InspectedEntry struct {
 
 const (
 	// ENTRY
-	ENTRY_SELECT_FIELDS = "SELECT id, creationDate, erpId, sourceName, name "
-	ENTRY_INSERT_UPDATE = " creationDate=?, erpId=?, sourceName=?, name=?"
+	ENTRY_TABLE_NAME = "admin_erp_entry"
 
-	COUNT_ENTRY_USED    = "SELECT COUNT(*) FROM admin_erp_entry WHERE erpId=? AND sourceName=?"
-	SELECT_ENTRY_ALL    = ENTRY_SELECT_FIELDS + "FROM admin_erp_entry"
-	SELECT_ENTRY_BY_ID  = ENTRY_SELECT_FIELDS + "FROM admin_erp_entry WHERE id=?"
-	SELECT_ENTRY_BY_ERP = ENTRY_SELECT_FIELDS + "FROM admin_erp_entry WHERE erpId=?"
-	INSERT_ENTRY        = "INSERT admin_erp_entry SET " + ENTRY_INSERT_UPDATE
-	UPDATE_ENTRY_BY_ID  = "UPDATE admin_erp_entry SET " + ENTRY_INSERT_UPDATE + " WHERE id=?"
-	DELETE_ENTRY        = "DELETE FROM admin_erp_entry WHERE id=?"
+	ENTRY_SELECT_FIELDS = "SELECT id, creationDate, erpId, sourceName, name, blockSize "
+	ENTRY_INSERT_UPDATE = " creationDate=?, erpId=?, sourceName=?, name=?, blockSize=?"
+
+	COUNT_ENTRY_USED    = "SELECT COUNT(*) FROM " + ENTRY_TABLE_NAME + " WHERE erpId=? AND sourceName=?"
+	SELECT_ENTRY_BY_ERP = ENTRY_SELECT_FIELDS + "FROM " + ENTRY_TABLE_NAME + " WHERE erpId=?"
+	INSERT_ENTRY        = "INSERT " + ENTRY_TABLE_NAME + " SET " + ENTRY_INSERT_UPDATE
+	UPDATE_ENTRY_BY_ID  = "UPDATE " + ENTRY_TABLE_NAME + " SET " + ENTRY_INSERT_UPDATE + " WHERE id=?"
 
 	SELECT_TABLE_MYSQL = "select COLUMN_NAME from information_schema.columns where TABLE_SCHEMA = ? AND TABLE_NAME =?"
 
@@ -62,18 +61,13 @@ const (
 )
 
 func (o *ErpEntry) loadDb() error {
-	st, err := dbC.Prepare(SELECT_ENTRY_BY_ID)
-	if err != nil {
-		return err
+
+	if rows, err := selectById(o); err == nil {
+		for rows.Next() {
+			o.loadFromDbRow(rows)
+		}
 	} else {
-		defer st.Close()
-	}
-	rows, err := st.Query(o.Id)
-	if err != nil {
 		return err
-	}
-	for rows.Next() {
-		o.loadFromDbRow(rows)
 	}
 	return nil
 }
@@ -82,74 +76,70 @@ func (o *ErpEntry) saveDb() error {
 	st, err := dbC.Prepare(INSERT_ENTRY)
 	if err != nil {
 		return err
+	}
+	defer st.Close()
+
+	if res, err := st.Exec(time.Now(), o.ErpId, o.SourceName, o.Name, o.BlockSize); err != nil {
+		return err
 	} else {
-		defer st.Close()
+		if id, err := res.LastInsertId(); err == nil {
+			o.Id = int(id)
+		} else {
+			return err
+		}
 	}
-	res, err := st.Exec(time.Now(), o.ErpId, o.SourceName, o.Name)
-	if err != nil {
-		return err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-	o.Id = int(id)
 	return nil
 }
 
 func (o *ErpEntry) updateDb() error {
-	st, err := dbC.Prepare(UPDATE_ENTRY_BY_ID)
-	if err != nil {
+	if st, err := dbC.Prepare(UPDATE_ENTRY_BY_ID); err != nil {
 		return err
 	} else {
 		defer st.Close()
-	}
-	_, err = st.Exec(o.CreationDate, o.ErpId, o.SourceName, o.Name, o.Id)
-	if err != nil {
-		return err
+		if _, err = st.Exec(o.CreationDate, o.ErpId, o.SourceName, o.Name, o.BlockSize, o.Id); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
+func (o *ErpEntry) loadChildSyncFields() {
+	o.loadDbSyncFields()
+	childrenS := make([]Deleter, len(o.SyncFields))
+	for i, valS := range o.SyncFields {
+		childrenS[i] = valS
+		valS.loadChildDecorator()
+	}
+	o.Children = childrenS
+}
+
 func (o *ErpEntry) deleteDb() error {
-	st, err := dbC.Prepare(DELETE_ENTRY)
-	if err != nil {
+	o.loadChildSyncFields()
+	if err := delete(o); err != nil {
+		return err
+	}
+	if st, err := dbC.Prepare(fmt.Sprintf("DROP TABLE IF EXISTS %s", o.getImportationTableSchema())); err != nil {
 		return err
 	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(o.Id)
-	if err != nil {
-		return err
-	}
-	o.loadDbSyncFields()
-	for _, val := range o.SyncFields {
-		val.deleteDb()
-	}
-
-	st, err = dbC.Prepare(fmt.Sprintf("DROP TABLE IF EXISTS `mid_db`.`%s`", o.getImportationTableName()))
-	if err != nil {
-		return err
-	}
-	_, err = st.Exec()
-	if err != nil {
-		return err
+		if _, err := st.Exec(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (o *ErpEntry) loadFromDbRow(rows *sql.Rows) error {
-	err := rows.Scan(&o.Id, &o.CreationDate, &o.ErpId, &o.SourceName, &o.Name)
-	if err != nil {
+	if err := rows.Scan(&o.Id, &o.CreationDate, &o.ErpId, &o.SourceName, &o.Name, &o.BlockSize); err != nil {
 		return err
+	} else {
+		err = o.loadDbSyncFields()
+		o.checkImportationTableName()
 	}
-	o.loadDbSyncFields()
-	o.checkImportationTableName()
 	return nil
 }
 
 func (o *ErpEntry) lazyLoadRFields() error {
-	erp := &Erp{Id: o.ErpId}
+	erp := &Erp{DBEntity: DBEntity{Id: o.ErpId}}
 	erp.loadDb()
 
 	if erp.TypeInt == MYSQL_TYPE {
@@ -197,27 +187,25 @@ func (o *ErpEntry) lazyLoadRFields() error {
 func (o *ErpEntry) loadDbSyncFields() error {
 	var tResult [10]SyncField
 	result := tResult[0:0]
-
-	st, err := dbC.Prepare(SELECT_FIELD_BY_ENTRY)
-	if err != nil {
+	if st, err := dbC.Prepare(SELECT_FIELD_BY_ENTRY); err != nil {
 		return err
-	}
-
-	rows, err := st.Query(o.Id)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		o := SyncField{}
-		o.loadFromDbRow(rows)
-		result = append(result, o)
+	} else {
+		if rows, err := st.Query(o.Id); err != nil {
+			return err
+		} else {
+			for rows.Next() {
+				o := SyncField{}
+				o.loadFromDbRow(rows)
+				result = append(result, o)
+			}
+		}
 	}
 	o.SyncFields = result
 	return nil
 }
 
 func (o *ErpEntry) getExtractSentence() string {
-	erp := &Erp{Id: o.ErpId}
+	erp := &Erp{DBEntity: DBEntity{Id: o.ErpId}}
 	erp.loadDb()
 	if erp.TypeInt == MYSQL_TYPE {
 		l := o.SyncFields
@@ -235,95 +223,39 @@ func (o *ErpEntry) getExtractSentence() string {
 	return ""
 }
 
-func (o *ErpEntry) sync() error {
-	extractSentence := o.getExtractSentence()
-	if extractSentence == "" {
-		return nil
-	}
-
-	erp := &Erp{Id: o.ErpId}
-	erp.loadDb()
-	cpt := 0
-
-	if erp.TypeInt == MYSQL_TYPE {
-		dbCErp, err := sql.Open("mysql", erp.Value)
-		if err != nil {
-			return err
-		} else {
-			defer dbCErp.Close()
-		}
-		st, err := dbCErp.Prepare(extractSentence)
-		if err != nil {
-			return err
-		} else {
-			defer st.Close()
-		}
-
-		rows, err := st.Query()
-		if err != nil {
-			return err
-		}
-		var content string
-		l := o.SyncFields
-		ecMap := make(map[string]*ExtractedContent)
-		for rows.Next() {
-			err := rows.Scan(&content)
-			if err == nil {
-				var pkContent string
-				ps := strings.Split(content, MYSQL_TYPE_SPLIT)
-				lp := len(ps)
-				mapD := map[string]string{}
-				for i := 0; i < lp; i++ {
-					str := strings.Replace(ps[i], MYSQL_TYPE_EMPTY, "", -1)
-					if l[i].ErpPk {
-						pkContent += str
-					}
-					fN, val := l[i].decorate(str)
-					mapD[fN] = val
-				}
-				outJson, _ := json.Marshal(mapD)
-				ecMap[pkContent] = &ExtractedContent{ErpEntryId: o.Id, ErpPk: pkContent, Content: string(outJson)}
-			}
-			cpt++
-		}
-		go insertOrUpdate(o, ecMap)
-
-	}
-	return nil
-}
-
-func (o *ErpEntry) ping(nbRows int) error {
+func (o *ErpEntry) ping(nbRows int) ([]string, error) {
 	l := o.SyncFields
 	extractSentence := o.getExtractSentence()
 	if extractSentence == "" {
-		o.PingLines = make([]PingLine, 0)
-		return nil
+		return make([]string, 0), nil
 	}
 
 	if nbRows <= 1 {
 		nbRows = 1
 	}
-	erp := &Erp{Id: o.ErpId}
+	erp := &Erp{DBEntity: DBEntity{Id: o.ErpId}}
 	erp.loadDb()
+
+	result := make([]string, nbRows)
 
 	if erp.TypeInt == MYSQL_TYPE {
 		dbCErp, err := sql.Open("mysql", erp.Value)
 		if err != nil {
-			return err
+			return nil, err
 		} else {
 			defer dbCErp.Close()
 		}
 		st, err := dbCErp.Prepare(extractSentence)
 		if err != nil {
-			return err
+			return nil, err
 		} else {
 			defer st.Close()
 		}
 		rows, err := st.Query()
 		if err != nil {
-			return err
+			return nil, err
 		}
-		result := make([]PingLine, nbRows)
+
 		var content string
 		cpt := 0
 		for rows.Next() {
@@ -338,20 +270,23 @@ func (o *ErpEntry) ping(nbRows int) error {
 					mapD[fN] = val
 				}
 				outJson, _ := json.Marshal(mapD)
-				result[cpt] = PingLine{string(outJson)}
+				result[cpt] = string(outJson)
 			}
 			if cpt == nbRows-1 {
 				break
 			}
 			cpt++
 		}
-		o.PingLines = result
 	}
-	return nil
+	return result, nil
 }
 
-func (o *ErpEntry) getImportationTableName() string {
+func (o *ErpEntry) getImportationTable() string {
 	return DATA_TABLE_NAME + strconv.Itoa(o.Id)
+}
+
+func (o *ErpEntry) getImportationTableSchema() string {
+	return fmt.Sprintf("`mid_db`.`%s`", o.getImportationTable())
 }
 
 func (o *ErpEntry) createImportationTableName() {
@@ -360,17 +295,18 @@ func (o *ErpEntry) createImportationTableName() {
 
 func (o *ErpEntry) checkImportationTableName() error {
 	// CREATE THE DATA TABLE TO STORE THE IMPORTED CONTENT
-	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`" + o.getImportationTableName() + "` ( `id` int(11) NOT NULL AUTO_INCREMENT,  `active` tinyint(1) NOT NULL,`content` text,  `creationDate` bigint(20) unsigned DEFAULT NULL, `erpPk` varchar(255) DEFAULT NULL,`lastUpdate` bigint(20) unsigned DEFAULT NULL,`name` varchar(255) DEFAULT NULL,`processedFromERP` tinyint(1) NOT NULL,PRIMARY KEY (`id`)) ENGINE=InnoDB AUTO_INCREMENT=13222 DEFAULT CHARSET=latin1;"
-	st, err := dbC.Prepare(sql)
-	if err != nil {
+	sql := "CREATE TABLE IF NOT EXISTS " + o.getImportationTableSchema() +
+		" ( `id` int(11) NOT NULL AUTO_INCREMENT,  `active` tinyint(1) NOT NULL,`content` text" +
+		",  `creationDate` bigint(20) unsigned DEFAULT NULL, `erpPk` varchar(255) DEFAULT NULL," +
+		"`lastUpdate` bigint(20) unsigned DEFAULT NULL,`name` varchar(255) DEFAULT NULL,`processedFromERP`" +
+		" tinyint(1) NOT NULL,PRIMARY KEY (`id`)) ENGINE=InnoDB AUTO_INCREMENT=13222 DEFAULT CHARSET=latin1;"
+	if st, err := dbC.Prepare(sql); err != nil {
 		return err
 	} else {
 		defer st.Close()
-	}
-
-	_, err = st.Exec()
-	if err != nil {
-		return err
+		if _, err = st.Exec(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -385,7 +321,7 @@ func (o *ErpEntry) getLoadedContent(likeOnErpPk, likeOnContent string, limit int
 	likeOnContent = encodeUTF(likeOnContent)
 	result := make([]*LoadedContentLine, limit)
 
-	selectString := "SELECT erpPk, creationDate, lastUpdate, name, content FROM " + o.getImportationTableName()
+	selectString := "SELECT erpPk, creationDate, lastUpdate, name, content FROM " + o.getImportationTable()
 	whereString := ""
 
 	if likeOnErpPk != "" || likeOnContent != "" {
@@ -402,223 +338,71 @@ func (o *ErpEntry) getLoadedContent(likeOnErpPk, likeOnContent string, limit int
 			whereString += " content like '%" + likeOnContent + "%'"
 			onPk = true
 		}
-	} else {
-
 	}
 
-	st, err := dbC.Prepare(selectString + whereString + " LIMIT " + strconv.Itoa(limit))
-	if err != nil {
+	if st, err := dbC.Prepare(selectString + whereString + " LIMIT " + strconv.Itoa(limit)); err != nil {
 		return nil, err
 	} else {
 		defer st.Close()
-	}
-	rows, err := st.Query()
-	if err != nil {
-		return nil, err
-	}
-	i := 0
-	for rows.Next() {
-		if i == limit {
-			break
-		}
-		lcl := &LoadedContentLine{}
-		err = rows.Scan(&lcl.ErpPk, &lcl.CreationDate, &lcl.LastUpdate, &lcl.Name, &lcl.Content)
-		if err != nil {
+		if rows, err := st.Query(); err != nil {
 			return nil, err
-		}
-		result[i] = lcl
-		i++
-	}
-	return result, nil
-}
-
-func insertOrUpdate(entry *ErpEntry, ec ExtractedContentMap) error {
-	var inserted int64 = 0
-	var updated int64 = 0
-
-	timeMSStart := getNowMillisecond()
-	tableName := fmt.Sprintf("`mid_db`.`%s`", entry.getImportationTableName())
-	var nbExistringRows int
-
-	stMark, err := dbC.Prepare("UPDATE " + tableName + " SET processedFromERP=0")
-	if err != nil {
-		return err
-	} else {
-		defer stMark.Close()
-	}
-
-	_, err = stMark.Exec()
-	if err != nil {
-		return err
-	}
-
-	st1, _ := dbC.Prepare("SELECT COUNT(*) FROM " + tableName)
-	if err != nil {
-		return err
-	} else {
-		defer st1.Close()
-	}
-	rows, err := st1.Query()
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		_ = rows.Scan(&nbExistringRows)
-	}
-	existingPKs := make([]string, nbExistringRows)
-
-	st2, _ := dbC.Prepare("SELECT erpPk FROM " + tableName)
-	if err != nil {
-		return err
-	} else {
-		defer st2.Close()
-	}
-	rows, err = st2.Query()
-	if err != nil {
-		return err
-	}
-	i := 0
-	var val string
-	for rows.Next() {
-		_ = rows.Scan(&val)
-		existingPKs[i] = val
-		i++
-	}
-
-	stIns, err := dbC.Prepare("INSERT " + tableName + " SET active=1, content=?, creationDate=?, erpPk=?, lastUpdate=?, name=?, processedFromERP=1")
-	if err != nil {
-		return err
-	} else {
-		defer stIns.Close()
-	}
-
-	stUpdate, err := dbC.Prepare("UPDATE " + tableName + " SET content=?, lastUpdate=?, processedFromERP=1 WHERE erpPk=?")
-	if err != nil {
-		return err
-	} else {
-		defer stUpdate.Close()
-	}
-
-	stUpdateProcessed, err := dbC.Prepare("UPDATE " + tableName + " SET processedFromERP=1 WHERE erpPk=?")
-	if err != nil {
-		return err
-	} else {
-		defer stUpdateProcessed.Close()
-	}
-
-	var keys []string
-	for k := range ec {
-		keys = append(keys, k)
-	}
-
-	if len(existingPKs) == 0 {
-		for _, k := range keys {
-			// TODO Opimize this
-			//INSERT INTO temp_data_broker (id,name) VALUES(36,'Santiago (copia)'),(34,'Zumaya') ... bulk sample
-			c := ec[k]
-			n := getNowMillisecond()
-			_, err := stIns.Exec(c.Content, n, c.ErpPk, n, entry.Name)
-			inserted++
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		var cptE int
-		for _, k := range keys {
-			c := ec[k]
-			rows, err := dbC.Query("SELECT COUNT(*) FROM " + tableName + " WHERE erpPk='" + c.ErpPk + "'")
-			if err != nil {
-				return err
-			}
+		} else {
+			i := 0
 			for rows.Next() {
-				_ = rows.Scan(&cptE)
+				if i == limit {
+					break
+				}
+				lcl := &LoadedContentLine{}
+				if err = rows.Scan(&lcl.ErpPk, &lcl.CreationDate, &lcl.LastUpdate, &lcl.Name, &lcl.Content); err != nil {
+					return nil, err
+				}
+				result[i] = lcl
+				i++
 			}
-			if cptE == 1 {
-				s := "SELECT COUNT(*) FROM " + tableName + " WHERE erpPk='" + c.ErpPk + "' AND content='" + c.Content + "'"
-				rows, err := dbC.Query(s)
-				if err != nil {
-					return err
-				}
-				for rows.Next() {
-					_ = rows.Scan(&cptE)
-				}
-				if cptE == 0 {
-
-					_, err := stUpdate.Exec(c.Content, getNowMillisecond(), c.ErpPk)
-					updated++
-					if err != nil {
-						return err
-					}
-				} else {
-					_, err := stUpdateProcessed.Exec(c.ErpPk)
-					if err != nil {
-						return err
-					}
-				}
-			} else {
-				n := getNowMillisecond()
-				_, err := stIns.Exec(c.Content, n, c.ErpPk, n, entry.Name)
-				inserted++
-				if err != nil {
-					return err
-				}
-			}
+			return result, nil
 		}
 	}
-
-	stDelete, err := dbC.Prepare("DELETE FROM " + tableName + " WHERE processedFromERP=0")
-	if err != nil {
-		return err
-	} else {
-		defer stDelete.Close()
-	}
-	res, err := stDelete.Exec()
-	if err != nil {
-		return err
-	}
-	deleted, _ := res.RowsAffected()
-	timeMSStop := getNowMillisecond()
-	_ = addEvent(entry, inserted, updated, deleted, timeMSStop-timeMSStart, int64(len(keys)))
-	return nil
 }
 
 func getErpEntries() ([]ErpEntry, error) {
 	var tResult [10]ErpEntry
 	result := tResult[0:0]
-
-	st, err := dbC.Prepare(SELECT_ENTRY_ALL)
-	if err != nil {
+	if rows, err := selectAll(&ErpEntry{}); err == nil {
+		i := 0
+		for rows.Next() {
+			o := ErpEntry{}
+			o.loadFromDbRow(rows)
+			result = append(result, o)
+			i++
+		}
+		return result, nil
+	} else {
 		return nil, err
 	}
-
-	rows, err := st.Query()
-	if err != nil {
-		return nil, err
-	}
-
-	i := 0
-	for rows.Next() {
-		o := ErpEntry{}
-		o.loadFromDbRow(rows)
-		result = append(result, o)
-		i++
-	}
-	return result, nil
 }
 
 func initDbEntry(db *sql.DB) error {
-	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp_entry` (`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpId` int(10) unsigned NOT NULL DEFAULT '0',  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`sourceName` varchar(255) NOT NULL DEFAULT '',`name` varchar(255) NOT NULL DEFAULT '',PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
-	st, err := db.Prepare(sql)
-	if err != nil {
+	sql := "CREATE TABLE IF NOT EXISTS `mid_db`.`admin_erp_entry` " +
+		"(`id` int(10) unsigned NOT NULL AUTO_INCREMENT,`erpId` int(10) unsigned NOT NULL DEFAULT '0'" +
+		",  `creationDate` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',`sourceName` varchar(255) NOT NULL DEFAULT ''" +
+		",`name` varchar(255) NOT NULL DEFAULT '',`blockSize` int(10) unsigned NOT NULL DEFAULT '0'," +
+		"PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET=latin1;"
+
+	if st, err := db.Prepare(sql); err != nil {
 		return err
 	} else {
 		defer st.Close()
-	}
-
-	_, err = st.Exec()
-	if err != nil {
-		return err
+		if _, err = st.Exec(); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func (e ErpEntry) getTableName() string {
+	return ENTRY_TABLE_NAME
+}
+
+func (e ErpEntry) getSelectFields() string {
+	return ENTRY_SELECT_FIELDS
 }

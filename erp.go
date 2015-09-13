@@ -7,54 +7,51 @@ import (
 )
 
 type VisibleErp struct {
-	CreationDate string
-	TypeInt      int
-	Type         string
-	Name         string
-	Value        string
-	Entries      []*VisibleErpEntry
+	CreationDate string             `xml:"creationDate"`
+	TypeInt      int                `xml:"typeInt"`
+	Type         string             `xml:"type"`
+	Name         string             `xml:"name"`
+	Value        string             `xml:"value"`
+	Entries      []*VisibleErpEntry `xml:"entries>entry"`
 }
 
 type Erp struct {
+	DBEntity
 	CreationDate string
 	TypeInt      int
 	Type         string
 	Name         string
 	Value        string
-	Id           int
 	Sources      []ErpSource
 	Entries      []ErpEntry
 }
 
 const (
 	// ERP
+	ERP_TABLE_NAME = "admin_erp"
+
 	ERP_SELECT_FIELDS = "SELECT id, creationDate, typeInt, type, name, value "
 	ERP_INSERT_UPDATE = " creationdate=?, typeInt=?, type=?, name=?, value=?"
 
-	SELECT_ERP_ALL   = ERP_SELECT_FIELDS + "FROM admin_erp"
-	SELECT_ERP_BY_ID = ERP_SELECT_FIELDS + "FROM admin_erp WHERE id=?"
-	INSERT_ERP       = "INSERT admin_erp SET " + ERP_INSERT_UPDATE
-	UPDATE_ERP_BY_ID = "UPDATE admin_erp SET " + ERP_INSERT_UPDATE + " WHERE id=?"
-	DELETE_ERP_BY_ID = "DELETE FROM admin_erp WHERE id=?"
+	INSERT_ERP       = "INSERT " + ERP_TABLE_NAME + " SET " + ERP_INSERT_UPDATE
+	UPDATE_ERP_BY_ID = "UPDATE " + ERP_TABLE_NAME + " SET " + ERP_INSERT_UPDATE + " WHERE id=?"
 
 	SELECT_ERP_MYSQL = "SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = ?"
 )
 
-func (o *Erp) loadDb() error {
-	st, err := dbC.Prepare(SELECT_ERP_BY_ID)
-	if err != nil {
-		return err
+func (o Erp) loadDb() error {
+	fmt.Printf("erp loadDb %v\n", o.getId())
+	fmt.Printf("erp loadDb %v\n", o.Id)
+	if rows, err := selectById(o); err == nil {
+		for rows.Next() {
+			o.loadFromDbRow(rows)
+		}
+		fmt.Printf("erp1 %v\n", o)
+		return nil
 	} else {
-		defer st.Close()
-	}
-	rows, err := st.Query(o.Id)
-	if err != nil {
+		fmt.Printf("erp2 %v\n", err)
 		return err
 	}
-	for rows.Next() {
-		o.loadFromDbRow(rows)
-	}
-	return nil
 }
 
 func (o *Erp) saveDb() error {
@@ -92,13 +89,7 @@ func (o *Erp) deleteDb() error {
 			val.deleteDb() // TODO Optimize this
 		}
 	}
-	st, err := dbC.Prepare(DELETE_ERP_BY_ID)
-	if err != nil {
-		return err
-	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(o.Id)
+	err := delete(o)
 	if err != nil {
 		return err
 	}
@@ -192,23 +183,16 @@ func (p *Erp) loadErpEntries() error {
 func getErps() ([]Erp, error) {
 	var tResult [10]Erp
 	result := tResult[0:0]
-
-	st, err := dbC.Prepare(SELECT_ERP_ALL)
-	if err != nil {
+	if rows, err := selectAll(&Erp{}); err == nil {
+		for rows.Next() {
+			o := Erp{}
+			o.loadFromDbRow(rows)
+			result = append(result, o)
+		}
+		return result, nil
+	} else {
 		return nil, err
 	}
-
-	rows, err := st.Query()
-	if err != nil {
-		return nil, err
-	}
-
-	for rows.Next() {
-		o := Erp{}
-		o.loadFromDbRow(rows)
-		result = append(result, o)
-	}
-	return result, nil
 }
 
 func initDbErp(db *sql.DB) error {
@@ -226,4 +210,12 @@ func initDbErp(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+func (e Erp) getTableName() string {
+	return ERP_TABLE_NAME
+}
+
+func (e Erp) getSelectFields() string {
+	return ERP_SELECT_FIELDS
 }

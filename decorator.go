@@ -10,10 +10,10 @@ import (
 )
 
 type VisibleDecorator struct {
-	Name         string
-	Description  string
-	SortingOrder int
-	Params       string
+	Name         string `xml:"name"`
+	Description  string `xml:"description"`
+	SortingOrder int    `xml:"sortingOrder"`
+	Params       string `xml:"params"`
 }
 
 type PredefinedDecoratorParam struct {
@@ -32,11 +32,11 @@ type PredefinedDecorator struct {
 }
 
 type Decorator struct {
+	DBEntity
 	Name         string
 	Description  string
 	SortingOrder int
 	Params       string
-	Id           int
 	DecoratorId  int
 	SyncFieldId  int
 }
@@ -44,16 +44,15 @@ type Decorator struct {
 type DecoratorMap map[int]*PredefinedDecorator
 
 const (
+	DECORATOR_TABLE_NAME = "admin_sync_field_decorator"
 
 	// DECORATOR
 	DECORATOR_SELECT_FIELDS = "SELECT id, decoratorId, syncFieldId, sortingOrder, params "
 	DECORATOR_INSERT_UPDATE = " decoratorId=?, syncFieldId=?, sortingOrder=?, params=?"
 
-	SELECT_DECORATOR_BY_FIELD = DECORATOR_SELECT_FIELDS + " FROM admin_sync_field_decorator WHERE syncFieldId=? ORDER BY sortingOrder"
-	INSERT_DECORATOR          = "INSERT admin_sync_field_decorator SET " + DECORATOR_INSERT_UPDATE
-	UPDATE_DECORATOR_BY_ID    = "UPDATE admin_sync_field_decorator SET " + DECORATOR_INSERT_UPDATE + " WHERE id=?"
-	DELETE_DECORATOR_BY_ID    = "DELETE FROM admin_sync_field_decorator WHERE id=?"
-	DELETE_DECORATOR_BY_FIELD = "DELETE FROM admin_sync_field_decorator WHERE syncFieldId=?"
+	SELECT_DECORATOR_BY_FIELD = DECORATOR_SELECT_FIELDS + " FROM " + DECORATOR_TABLE_NAME + " WHERE syncFieldId=? ORDER BY sortingOrder"
+	INSERT_DECORATOR          = "INSERT " + DECORATOR_TABLE_NAME + " SET " + DECORATOR_INSERT_UPDATE
+	UPDATE_DECORATOR_BY_ID    = "UPDATE " + DECORATOR_TABLE_NAME + " SET " + DECORATOR_INSERT_UPDATE + " WHERE id=?"
 )
 
 func (o *Decorator) loadFromDbRow(rows *sql.Rows) error {
@@ -99,32 +98,8 @@ func (o *Decorator) updateDb() error {
 	return nil
 }
 
-func (o *Decorator) deleteDb() {
-	deleteDecoratorById(o.Id)
-}
-
-func deleteDecoratorByField(id int) error {
-	st, err := dbC.Prepare(DELETE_DECORATOR_BY_FIELD)
-	if err != nil {
-		return err
-	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(id)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func deleteDecoratorById(id int) error {
-	st, err := dbC.Prepare(DELETE_DECORATOR_BY_ID)
-	if err != nil {
-		return err
-	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(id)
+func (o *Decorator) deleteDb() error {
+	err := delete(o)
 	if err != nil {
 		return err
 	}
@@ -390,4 +365,12 @@ func initDbDecorator(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+func (e Decorator) getTableName() string {
+	return DECORATOR_TABLE_NAME
+}
+
+func (e Decorator) getSelectFields() string {
+	return DECORATOR_SELECT_FIELDS
 }

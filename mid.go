@@ -31,6 +31,9 @@ TODO :
 	- push changes
 	- find gap
 	- fix gap
+
+- Add Mutex while synchronizing entries...  ( if case of, for example, a frequency lower than the processing time )
+
 */
 
 import (
@@ -42,6 +45,7 @@ import (
 	"net/http"
 	"runtime"
 	"strconv"
+	"strings"
 )
 
 type ExtractedContent struct {
@@ -81,15 +85,51 @@ var dbC *sql.DB
 var cptGen int
 var decorators DecoratorMap
 
+type rFInt func(r *http.Request) (int, error)
+type rFString func(r *http.Request) string
+
+var iFId = readFormInt("Id")
+var iFField = readFormInt("FieldId")
+var iFErp = readFormInt("ErpId")
+var iFEntry = readFormInt("EntryId")
+var iFDec = readFormInt("DecId")
+var iFDec2 = readFormInt("DecoratorId")
+var iFBlock = readFormInt("BlockSize")
+var iFLimit = readFormInt("Limit")
+
+var sFSourceName = readFormString("SourceName")
+var sFName = readFormString("Name")
+var sFValue = readFormString("Value")
+var sFFieldName = readFormString("FieldName")
+var sFEntry = readFormString("EntryId")
+var sFTextContent = readFormString("TestContent")
+var sFId = readFormString("Id")
+var sFJSonName = readFormString("JsonName")
+var sFField = readFormString("FieldId")
+var sFLikeOnPk = readFormString("LikeOnErpPk")
+var sFLikeOnContent = readFormString("LikeOnContent")
+
+var jsonHtmlTmpl = template.Must(template.New("jsonHtml").Parse(`
+	<pre>{{.}}</pre>
+`))
+
+var xmlHtmlTmpl = template.Must(template.New("xmlHtml").Parse(`
+	<pre>{{.}}</pre>
+`))
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	defer dbC.Close()
 	defer fmt.Printf("stopped \n")
 
+	go StartSync()
+
 	// ERP ---
 	http.HandleFunc("/admin/", adminHandler)
-	http.HandleFunc("/viewConfigJSon/", viewConfigJSonHandler)
+	http.HandleFunc("/configJSon/", configJSonHandler)
+	http.HandleFunc("/configXml/", configXmlHandler)
 	http.HandleFunc("/importConfigJSon/", importConfigJSonHandler)
+
 	http.HandleFunc("/inspect/", inspectHandler)
 
 	http.HandleFunc("/erpsources/", erpsourcesHandler)
@@ -111,8 +151,8 @@ func main() {
 
 	http.HandleFunc("/deleteErpEntry/", deleteErpEntryHandler)
 	http.HandleFunc("/syncErpEntry/", syncErpEntryHandler)
-	http.HandleFunc("/pingErpEntry/", pingErpEntryHandler)
-	http.HandleFunc("/pingTestErpEntry/", pingTestErpEntryHandler)
+	http.HandleFunc("/pingAsyncErpEntry/", pingAsyncErpEntryHandler)
+	http.HandleFunc("/pingAsyncTestErpEntry/", pingAsyncTestErpEntryHandler)
 
 	// FIELDS ---
 	http.HandleFunc("/erpListFields/", erpListFieldsHandler)
@@ -130,6 +170,8 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.Dir("./resources")))
 	http.Handle("/resources/", http.StripPrefix("/resources/", http.FileServer(http.Dir("resources"))))
+
+	fmt.Println("ListenAndServe")
 	http.ListenAndServe(":8090", nil)
 }
 
@@ -142,167 +184,253 @@ func init() {
 
 func erpsourcesHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/erpsources.html")
-	all, _ := getErps()
+	all, err := getErps()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, all)
 }
 
 func erpentriesHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/erpentries.html")
-	all, _ := getErpEntries()
+	all, err := getErpEntries()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, all)
 }
 
+var loadErpUrl = loadIdInt(readIntUrl, Erp{})
+
 func erpListTablesHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/erpListTables.html")
-	i, _ := strconv.Atoi(r.URL.Path[len("/erpListTables/"):])
-	erp := &Erp{Id: i}
-	erp.loadDb()
-	_ = erp.lazyLoadTables()
+	//i, _ := readIntUrl(r)
+	//erp := &Erp{DBEntity: DBEntity{Id: i}}
+	//err := erp.loadDb()
+	erp, err := loadErpUrl(r)
+	fmt.Printf("Erp %v\n", erp)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	//err = erp.lazyLoadTables()
+	//if err != nil {
+	//	fmt.Printf("%v\n", err)
+	//}
 	t.Execute(w, erp)
 }
 
 func erpListFieldsHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/erpListFields.html")
-	i, _ := strconv.Atoi(r.URL.Path[len("/erpListTables/"):])
-	ent := &ErpEntry{Id: i}
-	ent.loadDb()
-	_ = ent.lazyLoadRFields()
+	i, _ := readIntUrl(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = ent.lazyLoadRFields()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, ent)
 }
 
 func createErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/createErpEntry.html")
 	o := &ErpEntry{}
-	i, _ := strconv.Atoi(r.FormValue("Id"))
+	i, _ := iFId(r)
 	o.ErpId = i
-	o.SourceName = r.FormValue("SourceName")
+	o.SourceName = sFSourceName(r)
 	t.Execute(w, o)
 }
 
 func saveErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 	o := &ErpEntry{}
-	o.ErpId, _ = strconv.Atoi(r.FormValue("ErpId"))
-	o.SourceName = r.FormValue("SourceName")
-	o.Name = r.FormValue("Name")
-	o.saveDb()
+	o.ErpId, _ = iFErp(r)
+	o.SourceName = sFSourceName(r)
+	o.Name = sFName(r)
+	err := o.saveDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	o.createImportationTableName()
 	http.Redirect(w, r, "/erpentries", http.StatusFound)
 }
 
 func updateErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	i, _ := strconv.Atoi(r.FormValue("Id"))
-	ent := &ErpEntry{Id: i}
-	ent.loadDb()
-	ent.Name = r.FormValue("Name")
-	ent.updateDb()
+	i, _ := iFErp(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	ent.Name = sFName(r)
+	bs, _ := iFBlock(r)
+	ent.BlockSize = bs
+	err = ent.updateDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpentries", http.StatusFound)
 }
 
-func pingErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	t, _ := template.ParseFiles("./template/editErpEntry.html")
-	i, _ := strconv.Atoi(r.FormValue("Id"))
-	nbRows, _ := strconv.Atoi(r.FormValue("NbRows"))
-	ent := &ErpEntry{Id: i}
-	ent.loadDb()
-	ent.ping(nbRows)
-	t.Execute(w, ent)
+func pingAsyncErpEntryHandler(w http.ResponseWriter, r *http.Request) {
+	i, _ := readIntUrl(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	lines, _ := ent.ping(20)
+	for _, val := range lines {
+		w.Write([]byte(val + "<BR>"))
+	}
 }
 
-func pingTestErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	t, _ := template.ParseFiles("./template/addDecorator.html")
-	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
-	f := &SyncField{Id: idf}
-	f.loadDb()
-	f.TestContent = r.FormValue("TestContent")
+func pingAsyncTestErpEntryHandler(w http.ResponseWriter, r *http.Request) {
+	idf, _ := iFField(r)
+	f := &SyncField{DBEntity: DBEntity{Id: idf}}
+	err := f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	testContent := sFTextContent(r)
+
 	mapD := map[string]string{}
-	fN, val := f.decorate(f.TestContent)
+	fN, val := f.decorate(testContent)
 	mapD[fN] = val
 	outJson, _ := json.Marshal(mapD)
-	f.TestResponse = string(outJson)
-	t.Execute(w, f)
+	w.Write([]byte(testContent + "<BR>"))
+	w.Write([]byte(string(outJson) + "<BR>"))
 }
 
 func syncErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	i, _ := strconv.Atoi(r.URL.Path[len("/syncErpEntry/"):])
-	ent := &ErpEntry{Id: i}
-	ent.loadDb()
-	ent.sync()
+	i, _ := readIntUrl(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = synchronize(*ent)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpentries", http.StatusFound)
 }
 
 func deleteErpEntryHandler(w http.ResponseWriter, r *http.Request) {
-	i, _ := strconv.Atoi(r.URL.Path[len("/deleteErpEntry/"):])
-	ent := &ErpEntry{Id: i}
-	ent.loadDb() // TODO check if the load is required here
-	ent.deleteDb()
+	i, _ := readIntUrl(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb() // TODO check if the load is required here
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = ent.deleteDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpentries", http.StatusFound)
 }
 
 func deleteSyncFielddHandler(w http.ResponseWriter, r *http.Request) {
-	fieldId := r.FormValue("FieldId")
-	entryId := r.FormValue("EntryId")
-	idf, _ := strconv.Atoi(fieldId)
-	f := &SyncField{Id: idf}
-	f.loadDb() // TODO check id the load is required here
-	f.deleteDb()
-	http.Redirect(w, r, "/editErpEntry/"+entryId, http.StatusFound)
+	idf, _ := iFField(r)
+	f := &SyncField{DBEntity: DBEntity{Id: idf}}
+	err := f.loadDb() // TODO check id the load is required here
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = f.deleteDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	http.Redirect(w, r, "/editErpEntry/"+sFEntry(r), http.StatusFound)
 }
 
 func editSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/editSyncField.html")
-	i, _ := strconv.Atoi(r.URL.Path[len("/editSyncField/"):])
-	f := &SyncField{Id: i}
-	f.loadDb()
+	i, _ := readIntUrl(r)
+	f := &SyncField{DBEntity: DBEntity{Id: i}}
+	err := f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, f)
 }
 
 func updateSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
-	fieldId := r.FormValue("Id")
-	jsonName := r.FormValue("JsonName")
+	fieldId := sFId(r)
+	jsonName := sFJSonName(r)
 	i, _ := strconv.Atoi(fieldId)
-	f := &SyncField{Id: i}
-	f.loadDb()
+	f := &SyncField{DBEntity: DBEntity{Id: i}}
+	err := f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	f.ErpPk = eqstring(r.FormValue("ErpPk"), "on")
 	f.JsonName = jsonName
-	f.updateDb()
+	err = f.updateDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/editSyncField/"+fieldId, http.StatusFound)
 }
 
 func deleteDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/editSyncField.html")
-	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
-	idd, _ := strconv.Atoi(r.FormValue("DecId"))
-	deleteDecoratorById(idd)
-	f := &SyncField{Id: idf}
+	idf, _ := iFField(r)
+	idd, _ := iFDec(r)
+	d := &Decorator{DBEntity: DBEntity{Id: idd}}
+	err := d.deleteDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	f := &SyncField{DBEntity: DBEntity{Id: idf}}
 	f.reOrderDecorators()
-	f.loadDb()
+	err = f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, f)
 }
 
 func deleteDecoratorInAddHandler(w http.ResponseWriter, r *http.Request) {
-	fieldId := r.FormValue("FieldId")
-	decId := r.FormValue("DecId")
-	idd, _ := strconv.Atoi(decId)
-	deleteDecoratorById(idd)
-	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
-	f := &SyncField{Id: idf}
+	fieldId := sFField(r)
+	idd, _ := iFDec(r)
+	d := &Decorator{DBEntity: DBEntity{Id: idd}}
+	err := d.deleteDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	idf, _ := iFField(r)
+	f := &SyncField{DBEntity: DBEntity{Id: idf}}
 	f.reOrderDecorators()
-	f.loadDb()
+	err = f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/addDecorator/"+fieldId, http.StatusFound)
 }
 
 func deleteErpHandler(w http.ResponseWriter, r *http.Request) {
 	i, _ := strconv.Atoi(r.URL.Path[len("/deleteErp/"):])
-	erp := &Erp{Id: i}
-	erp.loadDb() // Check if the load is required here
-	erp.deleteDb()
+	erp := &Erp{DBEntity: DBEntity{Id: i}}
+	err := erp.loadDb() // Check if the load is required here
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = erp.deleteDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpsources", http.StatusFound)
 }
 
 func editErpHandler(w http.ResponseWriter, r *http.Request) {
-	i, _ := strconv.Atoi(r.URL.Path[len("/editErp/"):])
-	erp := &Erp{Id: i}
-	erp.loadDb()
+	i, _ := readIntUrl(r)
+	erp := &Erp{DBEntity: DBEntity{Id: i}}
+	err := erp.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	if erp.TypeInt == MYSQL_TYPE {
 		t, _ := template.ParseFiles("./template/erpEditMySql.html")
 		t.Execute(w, erp)
@@ -314,17 +442,23 @@ func editErpHandler(w http.ResponseWriter, r *http.Request) {
 
 func editErpEntryHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/editErpEntry.html")
-	i, _ := strconv.Atoi(r.URL.Path[len("/editErpEntry/"):])
-	ent := &ErpEntry{Id: i}
-	ent.loadDb()
+	i, _ := readIntUrl(r)
+	ent := &ErpEntry{DBEntity: DBEntity{Id: i}}
+	err := ent.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, ent)
 }
 
 func createSyncFieldHandler(w http.ResponseWriter, r *http.Request) {
 	o := &SyncField{}
-	o.ErpEntryId, _ = strconv.Atoi(r.FormValue("Id"))
-	o.FieldName = r.FormValue("FieldName")
-	o.saveDb()
+	o.ErpEntryId, _ = iFId(r)
+	o.FieldName = sFFieldName(r)
+	err := o.saveDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpentries", http.StatusFound)
 }
 
@@ -336,19 +470,28 @@ func createMySQLHandler(w http.ResponseWriter, r *http.Request) {
 	o := &Erp{}
 	o.TypeInt = MYSQL_TYPE
 	o.Type = "MySql"
-	o.Name = r.FormValue("Name")
-	o.Value = r.FormValue("Value")
-	o.saveDb()
+	o.Name = sFName(r)
+	o.Value = sFValue(r)
+	err := o.saveDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpsources", http.StatusFound)
 }
 
 func updateMySQLHandler(w http.ResponseWriter, r *http.Request) {
-	i, _ := strconv.Atoi(r.FormValue("Id"))
-	erp := &Erp{Id: i}
-	erp.loadDb()
-	erp.Name = r.FormValue("Name")
-	erp.Value = r.FormValue("Value")
-	erp.updateDb()
+	i, _ := iFId(r)
+	erp := &Erp{DBEntity: DBEntity{Id: i}}
+	err := erp.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	erp.Name = sFName(r)
+	erp.Value = sFName(r)
+	err = erp.updateDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	http.Redirect(w, r, "/erpsources", http.StatusFound)
 }
 
@@ -361,11 +504,16 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, nil)
 }
 
-func viewConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
-	t, _ := template.ParseFiles("./template/viewConfigJson.html")
+func configJSonHandler(w http.ResponseWriter, r *http.Request) {
 	c := &CentralConfig{}
-	c.toJson()
-	t.Execute(w, template.JS(c.JSonContent))
+	s := c.toJson()
+	jsonHtmlTmpl.Execute(w, template.JS(s))
+}
+
+func configXmlHandler(w http.ResponseWriter, r *http.Request) {
+	c := &CentralConfig{}
+	s := c.toXml()
+	xmlHtmlTmpl.Execute(w, template.JS(s))
 }
 
 func importConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
@@ -375,16 +523,19 @@ func importConfigJSonHandler(w http.ResponseWriter, r *http.Request) {
 
 func addDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/addDecorator.html")
-	i, _ := strconv.Atoi(r.URL.Path[len("/addDecorator/"):])
-	f := &SyncField{Id: i}
-	f.loadDb()
+	i, _ := readIntUrl(r)
+	f := &SyncField{DBEntity: DBEntity{Id: i}}
+	err := f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, f)
 }
 
 func requestAddDecoratorHandler(w http.ResponseWriter, r *http.Request) {
-	decI, _ := strconv.Atoi(r.FormValue("DecoratorId"))
-	fieldId := r.FormValue("FieldId")
-	idf, _ := strconv.Atoi(fieldId)
+	decI, _ := iFDec2(r)
+	fieldId := sFField(r)
+	idf, _ := iFField(r)
 
 	pDec := decorators[decI]
 	if pDec.Params == nil {
@@ -394,12 +545,21 @@ func requestAddDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 		d.Params = ""
 		d.SyncFieldId = idf
 
-		f := &SyncField{Id: idf}
-		f.loadDb()
+		f := &SyncField{DBEntity: DBEntity{Id: idf}}
+		err := f.loadDb()
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
 
 		d.SortingOrder = len(f.Decorators) + 1
-		d.saveDb()
-		f.loadDbDecorators()
+		err = d.saveDb()
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
+		err = f.loadDbDecorators()
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
 		t.Execute(w, f)
 	} else {
 		t, _ := template.ParseFiles(pDec.Template)
@@ -414,8 +574,8 @@ func requestAddDecoratorHandler(w http.ResponseWriter, r *http.Request) {
 
 func requestAddDecoratorParamHandler(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("./template/addDecorator.html")
-	decI, _ := strconv.Atoi(r.FormValue("DecoratorId"))
-	idf, _ := strconv.Atoi(r.FormValue("FieldId"))
+	decI, _ := iFDec2(r)
+	idf, _ := iFField(r)
 
 	pDec := decorators[decI]
 	params := pDec.Params
@@ -428,30 +588,41 @@ func requestAddDecoratorParamHandler(w http.ResponseWriter, r *http.Request) {
 	content = fmt.Sprintf("{%s}", content[:len(content)-1])
 	d := &Decorator{DecoratorId: decI, SyncFieldId: idf}
 	d.Params = content
-	f := &SyncField{Id: idf}
-	f.loadDb()
+	f := &SyncField{DBEntity: DBEntity{Id: idf}}
+	err := f.loadDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	d.SortingOrder = len(f.Decorators) + 1
-	d.saveDb()
-	f.loadDbDecorators()
+	err = d.saveDb()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	err = f.loadDbDecorators()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	t.Execute(w, f)
 }
 
 func inspectHandler(w http.ResponseWriter, r *http.Request) {
-	i, err := strconv.Atoi(r.URL.Path[len("/inspect/"):])
-	if err != nil {
+	if i, err := readIntUrl(r); err != nil {
 		t, _ := template.ParseFiles("./template/inspectList.html")
 		ens, _ := getErpEntries()
 		t.Execute(w, ens)
 	} else {
 		t, _ := template.ParseFiles("./template/inspection.html")
-		en := &ErpEntry{Id: i}
-		en.loadDb()
+		en := &ErpEntry{DBEntity: DBEntity{Id: i}}
+		err := en.loadDb()
+		if err != nil {
+			fmt.Printf("%v\n", err)
+		}
 
 		ie := &InspectedEntry{}
 		ie.Limit = 10
 
 		ie.Entry = en
-		st, err := dbC.Prepare("SELECT TABLE_NAME, TABLE_ROWS, AVG_ROW_LENGTH, DATA_LENGTH, DATA_FREE, AUTO_INCREMENT, CREATE_TIME, TABLE_COLLATION FROM information_schema.tables WHERE TABLE_SCHEMA = 'mid_db' and TABLE_NAME='" + en.getImportationTableName() + "'")
+		st, err := dbC.Prepare("SELECT TABLE_NAME, TABLE_ROWS, AVG_ROW_LENGTH, DATA_LENGTH, DATA_FREE, AUTO_INCREMENT, CREATE_TIME, TABLE_COLLATION FROM information_schema.tables WHERE TABLE_SCHEMA = 'mid_db' and TABLE_NAME='" + en.getImportationTable() + "'")
 		checkErr(err)
 		rows, err := st.Query()
 		checkErr(err)
@@ -464,16 +635,15 @@ func inspectHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		limit, err := strconv.Atoi(r.FormValue("Limit"))
-		if err != nil {
+		if limit, err := iFLimit(r); err != nil {
 			ie.Limit = 10
 		} else {
 			ie.Limit = limit
 		}
 
-		likeOnErpPk := r.FormValue("LikeOnErpPk")
+		likeOnErpPk := sFLikeOnPk(r)
 		ie.LikeOnErpPk = likeOnErpPk
-		likeOnContent := r.FormValue("LikeOnContent")
+		likeOnContent := sFLikeOnContent(r)
 		ie.LikeOnContent = likeOnContent
 		ie.LoadedContentLines, _ = en.getLoadedContent(likeOnErpPk, likeOnContent, ie.Limit)
 		t.Execute(w, ie)
@@ -492,4 +662,66 @@ func initDb(db *sql.DB) {
 	checkErr(err)
 	err = initDbSyncEvent(db)
 	checkErr(err)
+}
+
+func readFormInt(n string) func(r *http.Request) (int, error) {
+	return func(r *http.Request) (int, error) {
+		if i, err := strconv.Atoi(r.FormValue(n)); err == nil {
+			return i, nil
+		} else {
+			fmt.Printf("err %v\n", err)
+			return 0, err
+		}
+	}
+}
+
+func readFormString(n string) func(r *http.Request) string {
+	return func(r *http.Request) string {
+		return r.FormValue(n)
+	}
+}
+
+func readIntUrl(r *http.Request) (int, error) {
+	fmt.Printf("readIntUrl %v\n", r.URL.Path)
+	s := strings.Split(r.URL.Path, "/")
+	if i, err := strconv.Atoi(s[len(s)-1]); err == nil {
+		fmt.Printf("readIntUrl return %v\n", i)
+		return i, nil
+	} else {
+		fmt.Printf("readIntUrl err %v\n", err)
+		return 0, err
+	}
+}
+
+func loadIdInt(f rFInt, l Loader) func(r *http.Request) (Loader, error) {
+	return func(r *http.Request) (Loader, error) {
+		fmt.Printf("before calling f %v\n", r)
+		i, err := f(r)
+
+		if err != nil {
+			fmt.Printf("called1 %v\n", err)
+			return nil, err
+		} else {
+			fmt.Printf("called2 %v\n", i)
+			lp := l
+			fmt.Printf("lp1 %v\n", lp)
+			lp.setId(i)
+			fmt.Printf("lp2 %v\n", lp.getId())
+			lp.loadDb()
+			return l, nil
+		}
+		/**
+		if i, err := f(r); err != nil {
+			lp := l
+			fmt.Printf("setId %v\n", i)
+			lp.setId(i)
+
+			lp.loadDb()
+			return l, nil
+		} else {
+			fmt.Printf("err %v\n", err)
+			return nil, err
+		}
+		*/
+	}
 }

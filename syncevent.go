@@ -6,7 +6,7 @@ import (
 
 // SyncEvent is the processed content of one extraction from an ERP
 type SyncEvent struct {
-	Id         int
+	DBEntity
 	ErpEntryId int
 	SyncDate   string
 	Imported   int64
@@ -18,15 +18,14 @@ type SyncEvent struct {
 
 const (
 	// EVENTS
+	EVENT_TABLE_NAME = "admin_sync_events"
+
 	EVENT_SELECT_FIELDS = "SELECT id, erpEntryId, syncDate, imported, updated, deleted, pTime, nbEnries "
 	EVENT_INSERT_UPDATE = "erpEntryId=?, syncDate=?, imported=?, updated=?, deleted=?, pTime=?, nbEnries=?"
 
-	SELECT_EVENT_ALL      = EVENT_SELECT_FIELDS + " FROM admin_sync_events"
-	SELECT_EVENT_BY_ID    = EVENT_SELECT_FIELDS + " FROM admin_sync_events WHERE id=?"
-	SELECT_EVENT_BY_ENTRY = EVENT_SELECT_FIELDS + " FROM admin_sync_events WHERE erpEntryId=?"
-	INSERT_EVENT          = "INSERT admin_sync_events SET " + EVENT_INSERT_UPDATE
-	UPDATE_EVENT_BY_ID    = "UPDATE admin_sync_events SET " + EVENT_INSERT_UPDATE + " WHERE id=?"
-	DELETE_EVENT_BY_ID    = "DELETE FROM admin_sync_events WHERE id=?"
+	SELECT_EVENT_BY_ENTRY = EVENT_SELECT_FIELDS + " FROM " + EVENT_TABLE_NAME + " WHERE erpEntryId=?"
+	INSERT_EVENT          = "INSERT " + EVENT_TABLE_NAME + " SET " + EVENT_INSERT_UPDATE
+	UPDATE_EVENT_BY_ID    = "UPDATE " + EVENT_TABLE_NAME + " SET " + EVENT_INSERT_UPDATE + " WHERE id=?"
 )
 
 // saveDb saves the SyncEvent into the db
@@ -53,34 +52,20 @@ func (o *SyncEvent) saveDb() error {
 // loadDb loads the SyncEvent from the db,
 // the id must be defined to identify the content to load.
 func (o *SyncEvent) loadDb() error {
-	st, err := dbC.Prepare(SELECT_EVENT_BY_ID)
-	if err != nil {
-		return err
+	if rows, err := selectById(o); err == nil {
+		for rows.Next() {
+			o.loadFromDbRow(rows)
+		}
+		return nil
 	} else {
-		defer st.Close()
-	}
-
-	rows, err := st.Query(o.Id)
-	if err != nil {
 		return err
 	}
-
-	for rows.Next() {
-		o.loadFromDbRow(rows)
-	}
-	return nil
 }
 
 // deleteDb deletes the SyncEvent from the db,
 // the id must be defined to identify the content to delete.
 func (o *SyncEvent) deleteDb() error {
-	st, err := dbC.Prepare(DELETE_EVENT_BY_ID)
-	if err != nil {
-		return err
-	} else {
-		defer st.Close()
-	}
-	_, err = st.Exec(o.Id)
+	err := delete(o)
 	if err != nil {
 		return err
 	}
@@ -113,7 +98,15 @@ func initDbSyncEvent(db *sql.DB) error {
 	return nil
 }
 
-func addEvent(entry *ErpEntry, imported int64, updated int64, deleted int64, pTime int64, nbEntries int64) error {
+func addEvent(entry ErpEntry, imported int64, updated int64, deleted int64, pTime int64, nbEntries int64) error {
 	o := &SyncEvent{ErpEntryId: entry.Id, Imported: imported, Updated: updated, Deleted: deleted, PTime: pTime, NBEntries: nbEntries}
 	return o.saveDb()
+}
+
+func (e SyncEvent) getTableName() string {
+	return EVENT_TABLE_NAME
+}
+
+func (e SyncEvent) getSelectFields() string {
+	return EVENT_SELECT_FIELDS
 }

@@ -1,15 +1,34 @@
 <html>
 <head>
 <link href="/resources/style.css" rel="stylesheet">
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+
 <script>
 		function submithf1(id){
 			document.forms["hf1"]["FieldId"].value = id;
 			document.forms["hf1"].submit();
 		}
+
+		$(document).ready(function(){
+			 $(document).ajaxStart(function(){
+		        $("#wait").css("display", "block");
+		    });
+		    $(document).ajaxComplete(function(){
+		        $("#wait").css("display", "none");
+    		});
+
+		    $("#pingButton").click(function(e){
+		    	e.preventDefault();
+				$.get("/pingAsyncErpEntry/{{.Id}}", function(data, status){
+				 	$("#pingContent").html(data);
+				});
+		    });
+
+		});
 	</script>
 </head>
-
 <body>
+
 <h1>Edit an ERP Entry:</h1>
 
 [<a href="/erpentries/">Entries</a>]
@@ -20,19 +39,23 @@
 	SourceName: {{.SourceName}}<br>
 	Name: {{.Name}}<br>
 
-	<form name="myForm" action="/updateErpEntry/" method="POST">
+	<form id="myForm" action="/updateErpEntry/" method="POST">
 		<input type="hidden" value="{{.Id}}" name="Id" />
 		<table>
 			<tr class="commonBlock">
 				<td>Name</td>
 				<td><input name="Name" size="25" maxlength="25" value="{{printf "%s" .Name}}"/></td>
 			</tr>
-
+			<tr class="commonBlock">
+				<td>Block Size</td>
+				<td><input name="BlockSize" size="25" maxlength="25" value="{{printf "%d" .BlockSize}}"/></td>
+			</tr>
 		<table>
 		<div>
 			<input type="submit" value="Save">
 		</div>
 	</form>
+
 
 
 <h1>Synchronized fields:</h1>
@@ -62,27 +85,10 @@
 
 	<P>
 
-	<form name="myForm" action="/pingErpEntry/" method="POST">
-		<input type="hidden" value="{{.Id}}" name="Id" />
-		<table>
-			<tr class="commonBlock">
-				<td>NbRows</td>
-				<td><input name="NbRows" size="5" maxlength="5" value="10"></td>
-			</tr>
+	<div id="wait" style="display:none;width:69px;height:89px;border:1px solid black;position:absolute;top:50%;left:50%;padding:2px;"><img src='/resources/loading.gif' width="64" height="64" /><br>Loading..</div>
 
-		<table>
-		<div>
-			<input type="submit" value="Ping">
-		</div>
-	</form>
-
-	<table>
-	{{range .PingLines}}
-		<tr>
-			<td align="left">{{.Content}}</td>
-		</tr>
-	{{end}}
-	</table>
+	<button id="pingButton">Ping</button>
+	<p id="pingContent"></p>
 
 	<form name="hf1" action="/deleteSyncField/" method="POST">
 		<input type="hidden" value="{{.Id}}" name="EntryId" />
