@@ -5,6 +5,7 @@ import (
 	//"fmt"
 )
 
+
 type CentralConfig struct {
 	Erps        []Erp
 	JSonContent string
